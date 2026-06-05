@@ -1,0 +1,65 @@
+import { useCallback, useEffect, useState } from 'react';
+
+import { fetchExchangeRates, getCachedExchangeRates, getFallbackExchangeRates } from '../lib/currency';
+import type { ExchangeRates } from '../types/budget';
+
+export function useExchangeRates() {
+  const [rates, setRates] = useState<ExchangeRates>(getFallbackExchangeRates());
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refreshRates = useCallback(async () => {
+    setIsLoading(true);
+    const cachedRates = await getCachedExchangeRates();
+    if (cachedRates) {
+      setRates(cachedRates);
+    }
+
+    try {
+      const freshRates = await fetchExchangeRates();
+      setRates(freshRates);
+      setError(null);
+    } catch {
+      setRates((currentRates) => ({ ...(cachedRates ?? currentRates), isStale: true }));
+      setError('Güncel kur alınamadı, son kayıtlı kur gösteriliyor.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadRates() {
+      const cachedRates = await getCachedExchangeRates();
+      if (mounted && cachedRates) {
+        setRates(cachedRates);
+      }
+
+      try {
+        const freshRates = await fetchExchangeRates();
+        if (mounted) {
+          setRates(freshRates);
+          setError(null);
+        }
+      } catch {
+        if (mounted) {
+          setRates((currentRates) => ({ ...(cachedRates ?? currentRates), isStale: true }));
+          setError('Güncel kur alınamadı, son kayıtlı kur gösteriliyor.');
+        }
+      } finally {
+        if (mounted) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    loadRates();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  return { rates, isLoading, error, refreshRates };
+}

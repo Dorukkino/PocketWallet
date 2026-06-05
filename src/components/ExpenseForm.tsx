@@ -206,7 +206,7 @@ export function ExpenseForm({
         <View style={styles.titleIcon}>
           <Plus color="#34d399" size={18} />
         </View>
-        <View>
+        <View style={styles.titleTextBlock}>
           <Text style={styles.title}>{t('newExpense')}</Text>
           <Text style={styles.subtitle}>{t('newExpenseSubtitle')}</Text>
         </View>
@@ -448,6 +448,9 @@ const styles = StyleSheet.create({
     height: 38,
     justifyContent: 'center',
     width: 38,
+  },
+  titleTextBlock: {
+    flex: 1,
   },
   title: {
     color: '#f8fafc',

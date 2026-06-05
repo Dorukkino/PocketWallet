@@ -3,6 +3,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 
 import { Plus, Trash2, X } from 'lucide-react-native';
 
 import { CATEGORY_COLORS, CURRENCIES } from '../constants/categories';
+import { useI18n } from '../i18n';
 import { formatCurrencyValue } from '../lib/currency';
 import type { CategoryName, ExchangeRates, ExpenseCategory } from '../types/budget';
 import { CategoryIcon } from './CategoryIcon';
@@ -11,6 +12,7 @@ type Props = {
   categories: ExpenseCategory[];
   exchangeRates: ExchangeRates;
   defaultSpentOn: string;
+  resetSignal: number;
   onAddExpense: (expense: {
     title: string;
     amount: number;
@@ -60,10 +62,12 @@ export function ExpenseForm({
   categories,
   exchangeRates,
   defaultSpentOn,
+  resetSignal,
   onAddExpense,
   onAddCategory,
   onDeleteCategory,
 }: Props) {
+  const { categoryLabel, locale, t } = useI18n();
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState<CategoryName>(categories[0]?.name ?? 'Diğer');
@@ -90,16 +94,20 @@ export function ExpenseForm({
     }
   }, [amount, defaultSpentOn, title]);
 
+  useEffect(() => {
+    setError('');
+  }, [resetSignal]);
+
   const submit = async () => {
     const parsedAmount = Number(amount.replace(',', '.'));
 
     if (!title.trim()) {
-      setError('Lütfen gider açıklaması yazın.');
+      setError(t('writeExpenseTitleError'));
       return;
     }
 
     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-      setError('Lütfen sıfırdan büyük bir tutar girin.');
+      setError(t('validAmountError'));
       return;
     }
 
@@ -136,19 +144,19 @@ export function ExpenseForm({
           <Plus color="#34d399" size={18} />
         </View>
         <View>
-          <Text style={styles.title}>Yeni Gider Ekle</Text>
-          <Text style={styles.subtitle}>Harcamanı kaydet, bakiye anında güncellensin.</Text>
+          <Text style={styles.title}>{t('newExpense')}</Text>
+          <Text style={styles.subtitle}>{t('newExpenseSubtitle')}</Text>
         </View>
       </View>
 
       {error ? <Text style={styles.errorBox}>{error}</Text> : null}
 
       <View style={styles.field}>
-        <Text style={styles.label}>Gider açıklaması</Text>
+        <Text style={styles.label}>{t('expenseDescription')}</Text>
         <TextInput
           value={title}
           onChangeText={setTitle}
-          placeholder="Örn: market, fatura, sinema"
+          placeholder={t('expensePlaceholder')}
           placeholderTextColor="#475569"
           style={styles.input}
         />
@@ -156,7 +164,7 @@ export function ExpenseForm({
 
       <View style={styles.row}>
         <View style={[styles.field, styles.rowField]}>
-          <Text style={styles.label}>Tutar (TRY)</Text>
+          <Text style={styles.label}>{t('amountTry')}</Text>
           <TextInput
             value={amount}
             onChangeText={setAmount}
@@ -168,14 +176,14 @@ export function ExpenseForm({
           {canShowPreview ? (
             <Text style={styles.conversionPreview}>
               {CURRENCIES.filter((item) => item.code !== 'TRY')
-                .map((item) => formatCurrencyValue(parsedPreviewAmount, item.code, exchangeRates))
+                .map((item) => formatCurrencyValue(parsedPreviewAmount, item.code, exchangeRates, locale))
                 .join('  ·  ')}
             </Text>
           ) : null}
         </View>
 
         <View style={[styles.field, styles.rowField]}>
-          <Text style={styles.label}>Tarih</Text>
+          <Text style={styles.label}>{t('date')}</Text>
           <TextInput
             value={spentOn}
             onChangeText={setSpentOn}
@@ -187,7 +195,7 @@ export function ExpenseForm({
       </View>
 
       <View style={styles.field}>
-        <Text style={styles.label}>Kategori</Text>
+        <Text style={styles.label}>{t('category')}</Text>
         <View style={styles.categoryGrid}>
           {categories.map((item) => {
             const isSelected = category === item.name;
@@ -204,7 +212,7 @@ export function ExpenseForm({
                 ]}
               >
                 <CategoryIcon icon={item.icon} color={item.color} size={15} />
-                <Text style={[styles.categoryText, isSelected && { color: '#f8fafc' }]}>{item.name}</Text>
+                <Text style={[styles.categoryText, isSelected && { color: '#f8fafc' }]}>{categoryLabel(item.name)}</Text>
               </Pressable>
             );
           })}
@@ -213,17 +221,17 @@ export function ExpenseForm({
 
       <View style={styles.categoryManager}>
         <View style={styles.categoryManagerHeader}>
-          <Text style={styles.label}>Kategori Yönetimi</Text>
+          <Text style={styles.label}>{t('categoryManager')}</Text>
           <Pressable onPress={() => setIsCategoryModalVisible(true)} style={styles.openModalButton}>
             <Plus color="#022c22" size={15} />
-            <Text style={styles.openModalText}>Kategori Ekle</Text>
+            <Text style={styles.openModalText}>{t('addCategory')}</Text>
           </Pressable>
         </View>
         <View style={styles.manageList}>
           {categories.map((item) => (
             <View key={`manage-${item.id}`} style={styles.managePill}>
               <CategoryIcon icon={item.icon} color={item.color} size={14} />
-              <Text style={styles.manageText}>{item.name}</Text>
+              <Text style={styles.manageText}>{categoryLabel(item.name)}</Text>
               <Pressable onPress={() => onDeleteCategory(item.id)} hitSlop={8} style={styles.deleteCategoryButton}>
                 <Trash2 color="#fb7185" size={14} />
               </Pressable>
@@ -242,8 +250,8 @@ export function ExpenseForm({
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
               <View>
-                <Text style={styles.modalTitle}>Yeni Kategori</Text>
-                <Text style={styles.modalSubtitle}>Adını yaz, rengini ve giderine uygun ikonu seç.</Text>
+                <Text style={styles.modalTitle}>{t('newCategory')}</Text>
+                <Text style={styles.modalSubtitle}>{t('newCategorySubtitle')}</Text>
               </View>
               <Pressable onPress={() => setIsCategoryModalVisible(false)} style={styles.modalCloseButton}>
                 <X color="#94a3b8" size={18} />
@@ -253,12 +261,12 @@ export function ExpenseForm({
             <TextInput
               value={newCategoryName}
               onChangeText={setNewCategoryName}
-              placeholder="Örn: Kira, Sağlık, Evcil Hayvan"
+              placeholder={t('newCategoryPlaceholder')}
               placeholderTextColor="#475569"
               style={styles.input}
             />
 
-            <Text style={styles.iconPickerLabel}>Renk Seç</Text>
+            <Text style={styles.iconPickerLabel}>{t('colorSelect')}</Text>
             <View style={styles.colorGrid}>
               {CATEGORY_COLORS.map((color) => {
                 const isSelected = selectedColor === color;
@@ -274,7 +282,7 @@ export function ExpenseForm({
               })}
             </View>
 
-            <Text style={styles.iconPickerLabel}>İkon Seç</Text>
+            <Text style={styles.iconPickerLabel}>{t('iconSelect')}</Text>
             <ScrollView contentContainerStyle={styles.iconGrid} showsVerticalScrollIndicator={false}>
               {CATEGORY_ICON_OPTIONS.map((iconName) => {
                 const isSelected = selectedIcon === iconName;
@@ -291,14 +299,14 @@ export function ExpenseForm({
             </ScrollView>
 
             <Pressable onPress={submitCategory} style={styles.modalSubmitButton}>
-              <Text style={styles.modalSubmitText}>Kategoriyi Kaydet</Text>
+              <Text style={styles.modalSubmitText}>{t('saveCategory')}</Text>
             </Pressable>
           </View>
         </View>
       </Modal>
 
       <Pressable onPress={submit} disabled={isSaving} style={({ pressed }) => [styles.submit, pressed && styles.pressed]}>
-        <Text style={styles.submitText}>{isSaving ? 'Kaydediliyor...' : 'Gider Ekle'}</Text>
+        <Text style={styles.submitText}>{isSaving ? t('saving') : t('addExpense')}</Text>
       </Pressable>
     </View>
   );

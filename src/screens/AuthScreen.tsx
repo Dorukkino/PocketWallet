@@ -12,9 +12,12 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { LockKeyhole, Mail, UserRound, WalletCards } from 'lucide-react-native';
 
+import { LanguageToggle } from '../components/LanguageToggle';
+import { useI18n } from '../i18n';
 import { supabase } from '../lib/supabase';
 
 export function AuthScreen() {
+  const { t } = useI18n();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -24,12 +27,12 @@ export function AuthScreen() {
 
   const submit = async () => {
     if (mode === 'sign-up' && fullName.trim().length < 2) {
-      setMessage('Lütfen ad soyad bilgisini girin.');
+      setMessage(t('authFullNameError'));
       return;
     }
 
     if (!email.trim() || password.length < 6) {
-      setMessage('E-posta ve en az 6 karakterli şifre girin.');
+      setMessage(t('authEmailPasswordError'));
       return;
     }
 
@@ -57,7 +60,7 @@ export function AuthScreen() {
     }
 
     if (mode === 'sign-up') {
-      setMessage('Hesap oluşturuldu. E-posta doğrulaması açıksa gelen kutunu kontrol et.');
+      setMessage(t('authCreated'));
     }
   };
 
@@ -68,11 +71,12 @@ export function AuthScreen() {
       <View style={styles.glowBottom} />
 
       <View style={styles.card}>
+        <LanguageToggle style={styles.languageToggle} />
         <View style={styles.logo}>
           <WalletCards color="#022c22" size={30} />
         </View>
         <Text style={styles.title}>PocketWallet</Text>
-        <Text style={styles.subtitle}>Gelirini, giderlerini ve ay sonu bütçe analizini tek mobil ekranda takip et.</Text>
+        <Text style={styles.subtitle}>{t('authSubtitle')}</Text>
 
         {mode === 'sign-up' ? (
           <View style={styles.field}>
@@ -81,7 +85,7 @@ export function AuthScreen() {
               value={fullName}
               onChangeText={setFullName}
               autoCapitalize="words"
-              placeholder="Ad Soyad"
+              placeholder={t('fullNamePlaceholder')}
               placeholderTextColor="#475569"
               style={styles.input}
             />
@@ -95,7 +99,7 @@ export function AuthScreen() {
             onChangeText={setEmail}
             autoCapitalize="none"
             keyboardType="email-address"
-            placeholder="E-posta"
+            placeholder={t('emailPlaceholder')}
             placeholderTextColor="#475569"
             style={styles.input}
           />
@@ -107,7 +111,7 @@ export function AuthScreen() {
             value={password}
             onChangeText={setPassword}
             secureTextEntry
-            placeholder="Şifre"
+            placeholder={t('passwordPlaceholder')}
             placeholderTextColor="#475569"
             style={styles.input}
           />
@@ -119,7 +123,7 @@ export function AuthScreen() {
           {isLoading ? (
             <ActivityIndicator color="#022c22" />
           ) : (
-            <Text style={styles.submitText}>{mode === 'sign-in' ? 'Giriş Yap' : 'Hesap Oluştur'}</Text>
+            <Text style={styles.submitText}>{mode === 'sign-in' ? t('signIn') : t('signUp')}</Text>
           )}
         </Pressable>
 
@@ -131,7 +135,7 @@ export function AuthScreen() {
           style={styles.switchMode}
         >
           <Text style={styles.switchText}>
-            {mode === 'sign-in' ? 'Hesabın yok mu? Kayıt ol' : 'Zaten hesabın var mı? Giriş yap'}
+            {mode === 'sign-in' ? t('switchToSignUp') : t('switchToSignIn')}
           </Text>
         </Pressable>
       </View>
@@ -172,6 +176,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 22,
     width: '100%',
+  },
+  languageToggle: {
+    alignSelf: 'flex-end',
+    marginBottom: 10,
   },
   logo: {
     alignItems: 'center',

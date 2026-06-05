@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 
 import { CATEGORIES, CATEGORY_COLORS, DEFAULT_EXPENSES } from '../constants/categories';
+import { useI18n } from '../i18n';
 import { readBudgetSnapshot, writeBudgetSnapshot } from '../lib/storage';
 import { supabase } from '../lib/supabase';
 import type { BudgetPeriod, BudgetSnapshot, CategoryName, CurrencyCode, Expense, ExpenseCategory } from '../types/budget';
@@ -50,18 +51,18 @@ const endOfMonthKey = (monthKey: string) => {
   return dateKeyFromDate(new Date(year, month, 0));
 };
 
-const formatMonthLabel = (monthKey: string) => {
-  const formatted = new Intl.DateTimeFormat('tr-TR', { month: 'long', year: 'numeric' }).format(
+const formatMonthLabel = (monthKey: string, locale: string) => {
+  const formatted = new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(
     parseDateKey(startOfMonthKey(monthKey)),
   );
-  return formatted.charAt(0).toLocaleUpperCase('tr-TR') + formatted.slice(1);
+  return formatted.charAt(0).toLocaleUpperCase(locale) + formatted.slice(1);
 };
 
-const createBudgetPeriod = (monthKey: string, budgetStartDate: string): BudgetPeriod => {
+const createBudgetPeriod = (monthKey: string, budgetStartDate: string, locale: string): BudgetPeriod => {
   const firstMonthKey = monthKeyFromDateKey(budgetStartDate);
   return {
     monthKey,
-    label: formatMonthLabel(monthKey),
+    label: formatMonthLabel(monthKey, locale),
     startDate: monthKey === firstMonthKey ? budgetStartDate : startOfMonthKey(monthKey),
     endDate: endOfMonthKey(monthKey),
   };
@@ -117,6 +118,7 @@ const colorToSoftColor = (color: string) => {
 const normalizeCategoryName = (name: string) => name.trim().replace(/\s+/g, ' ');
 
 export function useBudget(session: Session | null) {
+  const { locale, t } = useI18n();
   const userId = session?.user.id;
   const fallbackBudgetStartDate = dateKeyFromIso(session?.user.created_at);
   const [currency, setCurrencyState] = useState<CurrencyCode>('TRY');
@@ -195,7 +197,7 @@ export function useBudget(session: Session | null) {
       }
 
       if (settingsResult.error || expensesResult.error || categoriesResult.error) {
-        setError('Bulut verileri alınamadı, yerel verilerle devam ediliyor.');
+        setError(t('remoteFetchFailed'));
       } else {
         const remoteCurrency = settingsResult.data?.currency as CurrencyCode | undefined;
         const remoteExpenses = expensesResult.data?.map(fromRemoteExpense) ?? [];
@@ -245,14 +247,14 @@ export function useBudget(session: Session | null) {
   useEffect(() => {
     if (!isHydrating) {
       writeBudgetSnapshot(userId, snapshot).catch(() => {
-        setError('Yerel kayıt güncellenemedi.');
+        setError(t('localSaveFailed'));
       });
     }
-  }, [isHydrating, snapshot, userId]);
+  }, [isHydrating, snapshot, t, userId]);
 
   const selectedPeriod = useMemo(
-    () => createBudgetPeriod(selectedMonthKey, budgetStartDate),
-    [budgetStartDate, selectedMonthKey],
+    () => createBudgetPeriod(selectedMonthKey, budgetStartDate, locale),
+    [budgetStartDate, locale, selectedMonthKey],
   );
 
   const monthOptions = useMemo(() => {
@@ -262,12 +264,12 @@ export function useBudget(session: Session | null) {
     let nextMonthKey = firstMonthKey;
 
     while (nextMonthKey <= lastMonthKey) {
-      options.push(createBudgetPeriod(nextMonthKey, budgetStartDate));
+      options.push(createBudgetPeriod(nextMonthKey, budgetStartDate, locale));
       nextMonthKey = addMonths(nextMonthKey, 1);
     }
 
     return options.reverse();
-  }, [budgetStartDate]);
+  }, [budgetStartDate, locale]);
 
   const periodExpenses = useMemo(
     () =>
@@ -332,10 +334,10 @@ export function useBudget(session: Session | null) {
       });
 
       if (updateError) {
-        setError('Para birimi buluta kaydedilemedi, yerel kayıt korundu.');
+        setError(t('currencySavedFailed'));
       }
     },
-    [userId],
+    [t, userId],
   );
 
   const addExpense = useCallback(
@@ -366,7 +368,7 @@ export function useBudget(session: Session | null) {
       });
 
       if (insertError) {
-        setError('Gider buluta kaydedilemedi, yerel kayıt korundu.');
+        setError(t('expenseSaveFailed'));
         setExpenses((current) => current.map((item) => (item.id === newExpense.id ? { ...item, pending: true } : item)));
         return;
       }
@@ -380,15 +382,15 @@ export function useBudget(session: Session | null) {
     async (name: string, icon = 'briefcase', selectedColor?: string) => {
       const normalizedName = normalizeCategoryName(name);
       if (normalizedName.length < 2) {
-        setError('Kategori adı en az 2 karakter olmalı.');
+        setError(t('categoryNameMin'));
         return false;
       }
 
       const duplicate = categories.some(
-        (category) => category.name.toLocaleLowerCase('tr-TR') === normalizedName.toLocaleLowerCase('tr-TR'),
+        (category) => category.name.toLocaleLowerCase(locale) === normalizedName.toLocaleLowerCase(locale),
       );
       if (duplicate) {
-        setError('Bu kategori zaten var.');
+        setError(t('categoryAlreadyExists'));
         return false;
       }
 
@@ -420,7 +422,7 @@ export function useBudget(session: Session | null) {
       });
 
       if (insertError) {
-        setError('Kategori buluta kaydedilemedi, yerel kayıt korundu.');
+        setError(t('categorySaveFailed'));
         return true;
       }
 
@@ -429,7 +431,7 @@ export function useBudget(session: Session | null) {
       );
       return true;
     },
-    [categories, userId],
+    [categories, locale, t, userId],
   );
 
   const deleteCategory = useCallback(
@@ -439,21 +441,42 @@ export function useBudget(session: Session | null) {
         return false;
       }
 
-      const isUsed = expenses.some((expense) => expense.category === category.name);
-      if (isUsed) {
-        setError('Bu kategori giderlerde kullanılıyor. Önce ilgili giderleri silmelisiniz.');
+      if (categories.length <= 1) {
+        setError(t('atLeastOneCategory'));
         return false;
       }
 
-      if (categories.length <= 1) {
-        setError('En az bir kategori kalmalı.');
-        return false;
-      }
+      const fallbackCategory =
+        categories.find((item) => item.id !== categoryId && item.name === 'Diğer') ??
+        categories.find((item) => item.id !== categoryId);
+      const previousExpenses = expenses;
 
       setCategories((current) => current.filter((item) => item.id !== categoryId));
+      if (fallbackCategory) {
+        setExpenses((current) =>
+          current.map((expense) =>
+            expense.category === category.name ? { ...expense, category: fallbackCategory.name } : expense,
+          ),
+        );
+      }
 
       if (!userId || category.id.startsWith('default-')) {
         return true;
+      }
+
+      if (fallbackCategory) {
+        const { error: updateExpensesError } = await supabase
+          .from('expenses')
+          .update({ category: fallbackCategory.name })
+          .eq('user_id', userId)
+          .eq('category', category.name);
+
+        if (updateExpensesError) {
+          setError(t('categoryDeleteFailed'));
+          setCategories((current) => [...current, category]);
+          setExpenses(previousExpenses);
+          return false;
+        }
       }
 
       const { error: deleteError } = await supabase
@@ -463,14 +486,15 @@ export function useBudget(session: Session | null) {
         .eq('user_id', userId);
 
       if (deleteError) {
-        setError('Kategori silinemedi, kayıt geri yüklendi.');
+        setError(t('categoryDeleteFailed'));
         setCategories((current) => [...current, category]);
+        setExpenses(previousExpenses);
         return false;
       }
 
       return true;
     },
-    [categories, expenses, userId],
+    [categories, expenses, t, userId],
   );
 
   const deleteExpense = useCallback(
@@ -487,11 +511,11 @@ export function useBudget(session: Session | null) {
 
       const { error: deleteError } = await supabase.from('expenses').delete().eq('id', expenseId).eq('user_id', userId);
       if (deleteError && removed) {
-        setError('Gider silinemedi, kayıt geri yüklendi.');
+        setError(t('deleteExpenseFailed'));
         setExpenses((current) => [removed as Expense, ...current]);
       }
     },
-    [userId],
+    [t, userId],
   );
 
   const refreshBudget = useCallback(async () => {
@@ -519,7 +543,7 @@ export function useBudget(session: Session | null) {
     ]);
 
     if (settingsResult.error || expensesResult.error || categoriesResult.error) {
-      setError('Veriler yenilenemedi, yerel veriler korunuyor.');
+      setError(t('remoteRefreshFailed'));
       setIsSyncing(false);
       return;
     }
@@ -537,7 +561,7 @@ export function useBudget(session: Session | null) {
     }
 
     setIsSyncing(false);
-  }, [userId]);
+  }, [t, userId]);
 
   return {
     income,

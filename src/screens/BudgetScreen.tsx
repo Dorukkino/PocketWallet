@@ -18,10 +18,12 @@ import { CalendarDays, ChevronLeft, ChevronRight, LogOut, WalletCards, X } from 
 import { BalanceHeader } from '../components/BalanceHeader';
 import { DonutChart } from '../components/DonutChart';
 import { ExpenseForm } from '../components/ExpenseForm';
+import { LanguageToggle } from '../components/LanguageToggle';
 import { TransactionList } from '../components/TransactionList';
 import { CURRENCIES } from '../constants/categories';
 import { useExchangeRates } from '../hooks/useExchangeRates';
 import { useBudget } from '../hooks/useBudget';
+import { useI18n } from '../i18n';
 import { formatCurrencyValue } from '../lib/currency';
 import { supabase } from '../lib/supabase';
 import type { BudgetPeriod } from '../types/budget';
@@ -32,16 +34,32 @@ type Props = {
 
 const wait = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
-const formatDateLabel = (dateKey: string) => {
+const formatDateLabel = (dateKey: string, locale: string) => {
   const [year, month, day] = dateKey.split('-').map(Number);
-  return new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'long' }).format(new Date(year, month - 1, day));
+  return new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'long' }).format(new Date(year, month - 1, day));
+};
+
+const formatMonthLabel = (monthKey: string, locale: string) => {
+  const [year, month] = monthKey.split('-').map(Number);
+  const formatted = new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(
+    new Date(year, month - 1, 1),
+  );
+  return formatted.charAt(0).toLocaleUpperCase(locale) + formatted.slice(1);
+};
+
+const formatMonthName = (monthKey: string, locale: string) => {
+  const [year, month] = monthKey.split('-').map(Number);
+  const formatted = new Intl.DateTimeFormat(locale, { month: 'long' }).format(new Date(year, month - 1, 1));
+  return formatted.charAt(0).toLocaleUpperCase(locale) + formatted.slice(1);
 };
 
 export function BudgetScreen({ session }: Props) {
+  const { locale, t } = useI18n();
   const budget = useBudget(session);
   const exchange = useExchangeRates();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isMonthPickerVisible, setIsMonthPickerVisible] = useState(false);
+  const [formResetSignal, setFormResetSignal] = useState(0);
   const selectedMonthIndex = Math.max(
     0,
     budget.monthOptions.findIndex((period) => period.monthKey === budget.selectedPeriod.monthKey),
@@ -71,10 +89,10 @@ export function BudgetScreen({ session }: Props) {
   };
 
   const signOut = () => {
-    Alert.alert('Çıkış Yap', 'PocketWallet hesabından çıkmak istiyor musun?', [
-      { text: 'Vazgeç', style: 'cancel' },
+    Alert.alert(t('signOut'), t('signOutConfirm'), [
+      { text: t('signOutCancel'), style: 'cancel' },
       {
-        text: 'Çıkış Yap',
+        text: t('signOut'),
         style: 'destructive',
         onPress: () => {
           supabase.auth.signOut();
@@ -85,6 +103,8 @@ export function BudgetScreen({ session }: Props) {
 
   const refreshScreen = useCallback(async () => {
     setIsRefreshing(true);
+    setFormResetSignal((current) => current + 1);
+    budget.clearError();
     await Promise.all([budget.refreshBudget(), exchange.refreshRates(), wait(800)]);
     setIsRefreshing(false);
   }, [budget, exchange]);
@@ -108,7 +128,7 @@ export function BudgetScreen({ session }: Props) {
             colors={['#34d399']}
             progressBackgroundColor="#0f172a"
             progressViewOffset={48}
-            title="Yenileniyor..."
+            title={t('refreshing')}
             titleColor="#94a3b8"
           />
         }
@@ -120,12 +140,15 @@ export function BudgetScreen({ session }: Props) {
             </View>
             <View>
               <Text style={styles.brand}>PocketWallet</Text>
-              <Text style={styles.brandSub}>Aylık finans kontrol paneli</Text>
+              <Text style={styles.brandSub}>{t('dashboardSubtitle')}</Text>
             </View>
           </View>
-          <Pressable onPress={signOut} style={styles.signOutButton} hitSlop={10}>
-            <LogOut color="#94a3b8" size={18} />
-          </Pressable>
+          <View style={styles.navActions}>
+            <LanguageToggle />
+            <Pressable onPress={signOut} style={styles.signOutButton} hitSlop={10}>
+              <LogOut color="#94a3b8" size={18} />
+            </Pressable>
+          </View>
         </View>
 
         <View style={styles.monthCard}>
@@ -134,13 +157,14 @@ export function BudgetScreen({ session }: Props) {
               <CalendarDays color="#5eead4" size={20} />
             </View>
             <View style={styles.monthInfo}>
-              <Text style={styles.monthTitle}>{budget.selectedPeriod.label}</Text>
+              <Text style={styles.monthTitle}>{formatMonthLabel(budget.selectedPeriod.monthKey, locale)}</Text>
               <Text style={styles.monthRange}>
-                {formatDateLabel(budget.selectedPeriod.startDate)} - {formatDateLabel(budget.selectedPeriod.endDate)}
+                {formatDateLabel(budget.selectedPeriod.startDate, locale)} -{' '}
+                {formatDateLabel(budget.selectedPeriod.endDate, locale)}
               </Text>
             </View>
             <Pressable onPress={() => setIsMonthPickerVisible(true)} style={styles.monthCountBadge}>
-              <Text style={styles.monthCountText}>{budget.monthOptions.length} ay</Text>
+              <Text style={styles.monthCountText}>{t('monthCount', { count: budget.monthOptions.length })}</Text>
             </Pressable>
           </View>
 
@@ -151,11 +175,11 @@ export function BudgetScreen({ session }: Props) {
               style={[styles.monthNavButton, !olderPeriod && styles.monthNavButtonDisabled]}
             >
               <ChevronLeft color={olderPeriod ? '#cbd5e1' : '#475569'} size={16} />
-              <Text style={[styles.monthNavText, !olderPeriod && styles.monthNavTextDisabled]}>Önceki</Text>
+              <Text style={[styles.monthNavText, !olderPeriod && styles.monthNavTextDisabled]}>{t('previous')}</Text>
             </Pressable>
 
             <Pressable onPress={() => setIsMonthPickerVisible(true)} style={styles.monthPickerButton}>
-              <Text style={styles.monthPickerButtonText}>Ay değiştir</Text>
+              <Text style={styles.monthPickerButtonText}>{t('changeMonth')}</Text>
             </Pressable>
 
             <Pressable
@@ -163,18 +187,21 @@ export function BudgetScreen({ session }: Props) {
               onPress={() => newerPeriod && budget.selectMonth(newerPeriod.monthKey)}
               style={[styles.monthNavButton, !newerPeriod && styles.monthNavButtonDisabled]}
             >
-              <Text style={[styles.monthNavText, !newerPeriod && styles.monthNavTextDisabled]}>Sonraki</Text>
+              <Text style={[styles.monthNavText, !newerPeriod && styles.monthNavTextDisabled]}>{t('next')}</Text>
               <ChevronRight color={newerPeriod ? '#cbd5e1' : '#475569'} size={16} />
             </Pressable>
           </View>
         </View>
 
         <View style={styles.currencyHeader}>
-          <Text style={styles.currencyTitle}>Günlük Kur Takibi</Text>
+          <Text style={styles.currencyTitle}>{t('currencyTitle')}</Text>
           <Text style={styles.currencySub}>
             {exchange.isLoading
-              ? 'Kurlar alınıyor...'
-              : `Kur tarihi: ${exchange.rates.sourceDate}${exchange.rates.isStale ? ' · son kayıtlı' : ''}`}
+              ? t('rateLoading')
+              : t('rateDate', {
+                  date: exchange.rates.sourceDate,
+                  stale: exchange.rates.isStale ? t('rateStaleInline') : '',
+                })}
           </Text>
         </View>
 
@@ -191,7 +218,7 @@ export function BudgetScreen({ session }: Props) {
               >
                 <Text style={[styles.currencyCode, isActive && styles.currencyTextActive]}>{item.code}</Text>
                 <Text style={[styles.currencyValue, isActive && styles.currencyTextActive]}>
-                  {formatCurrencyValue(budget.remainingBalance, item.code, exchange.rates)}
+                  {formatCurrencyValue(budget.remainingBalance, item.code, exchange.rates, locale)}
                 </Text>
               </Pressable>
             );
@@ -218,6 +245,7 @@ export function BudgetScreen({ session }: Props) {
           categories={budget.categories}
           exchangeRates={exchange.rates}
           defaultSpentOn={budget.defaultExpenseDate}
+          resetSignal={formResetSignal}
           onAddExpense={budget.addExpense}
           onAddCategory={budget.addCategory}
           onDeleteCategory={budget.deleteCategory}
@@ -239,13 +267,15 @@ export function BudgetScreen({ session }: Props) {
         />
 
         <View style={styles.adviceCard}>
-          <Text style={styles.adviceTitle}>Finansal Öneri</Text>
+          <Text style={styles.adviceTitle}>{t('financialAdvice')}</Text>
           <Text style={styles.adviceText}>
             {budget.income === 0 && budget.totalExpense === 0
-              ? 'Bu ay için gelir ve gider henüz girilmedi. Ayı yönetmeye gelirini ekleyerek başlayabilirsin.'
+              ? t('adviceEmpty')
               : budget.remainingBalance >= 0
-                ? `Bu ay %${Math.max(0, Math.round((budget.remainingBalance / Math.max(budget.income, 1)) * 100))} tasarruf alanın var. Kalan bütçeyi yatırım veya birikim için ayırabilirsin.`
-                : 'Bu ay harcamalar geliri geçti. Eğlence, giyim veya dış harcama kalemlerini sınırlamak bütçeyi hızlı toparlar.'}
+                ? t('advicePositive', {
+                    percent: Math.max(0, Math.round((budget.remainingBalance / Math.max(budget.income, 1)) * 100)),
+                  })
+                : t('adviceNegative')}
           </Text>
         </View>
       </ScrollView>
@@ -260,8 +290,8 @@ export function BudgetScreen({ session }: Props) {
           <View style={styles.monthModalCard}>
             <View style={styles.monthModalHeader}>
               <View>
-                <Text style={styles.monthModalTitle}>Ay Seç</Text>
-                <Text style={styles.monthModalSubtitle}>Yıla göre hızlıca geçmiş ayına git.</Text>
+                <Text style={styles.monthModalTitle}>{t('monthSelect')}</Text>
+                <Text style={styles.monthModalSubtitle}>{t('monthModalSubtitle')}</Text>
               </View>
               <Pressable onPress={() => setIsMonthPickerVisible(false)} style={styles.monthModalClose}>
                 <X color="#94a3b8" size={18} />
@@ -282,10 +312,10 @@ export function BudgetScreen({ session }: Props) {
                           style={[styles.monthGridItem, isSelected && styles.monthGridItemActive]}
                         >
                           <Text style={[styles.monthGridLabel, isSelected && styles.monthGridTextActive]}>
-                            {period.label.replace(` ${group.year}`, '')}
+                            {formatMonthName(period.monthKey, locale)}
                           </Text>
                           <Text style={[styles.monthGridRange, isSelected && styles.monthGridTextActive]}>
-                            {formatDateLabel(period.startDate)} - {formatDateLabel(period.endDate)}
+                            {formatDateLabel(period.startDate, locale)} - {formatDateLabel(period.endDate, locale)}
                           </Text>
                         </Pressable>
                       );
@@ -359,6 +389,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     marginTop: 2,
+  },
+  navActions: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
   },
   signOutButton: {
     alignItems: 'center',

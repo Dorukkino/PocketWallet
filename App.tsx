@@ -6,6 +6,7 @@ import type { Session } from '@supabase/supabase-js';
 import { AuthScreen } from './src/screens/AuthScreen';
 import { BudgetScreen } from './src/screens/BudgetScreen';
 import { supabase } from './src/lib/supabase';
+import { LanguageProvider } from './src/i18n';
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -30,18 +31,20 @@ export default function App() {
 
   if (isBooting) {
     return (
-      <View style={styles.bootScreen}>
-        <ActivityIndicator color="#34d399" />
-        <StatusBar style="light" />
-      </View>
+      <LanguageProvider>
+        <View style={styles.bootScreen}>
+          <ActivityIndicator color="#34d399" />
+          <StatusBar style="light" />
+        </View>
+      </LanguageProvider>
     );
   }
 
   return (
-    <>
+    <LanguageProvider>
       {session ? <BudgetScreen session={session} /> : <AuthScreen />}
       <StatusBar style="light" />
-    </>
+    </LanguageProvider>
   );
 }
 

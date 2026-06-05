@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
+import { useI18n } from '../i18n';
 import { formatCurrencyValue } from '../lib/currency';
 import type { CategoryStat, CurrencyCode, ExchangeRates } from '../types/budget';
 
@@ -36,17 +37,18 @@ const createPieSlicePath = (startAngle: number, endAngle: number) => {
 };
 
 export function DonutChart({ stats, totalExpense, currency, exchangeRates }: Props) {
+  const { categoryLabel, locale, t } = useI18n();
   let accumulatedAngle = 0;
 
   return (
     <View style={styles.card}>
-      <Text style={styles.title}>Harcama Analizi</Text>
-      <Text style={styles.subtitle}>Bu ayki kategorisel gider dağılımı</Text>
+      <Text style={styles.title}>{t('spendingAnalysis')}</Text>
+      <Text style={styles.subtitle}>{t('spendingAnalysisSubtitle')}</Text>
 
       {stats.length === 0 ? (
         <View style={styles.emptyBox}>
-          <Text style={styles.emptyTitle}>Henüz harcama yok</Text>
-          <Text style={styles.emptyText}>Gider eklediğinde grafik otomatik oluşacak.</Text>
+          <Text style={styles.emptyTitle}>{t('noExpenses')}</Text>
+          <Text style={styles.emptyText}>{t('noExpensesText')}</Text>
         </View>
       ) : (
         <>
@@ -70,13 +72,15 @@ export function DonutChart({ stats, totalExpense, currency, exchangeRates }: Pro
               </Svg>
             </View>
 
-            <Text style={styles.totalLabel}>Toplam: {formatCurrencyValue(totalExpense, currency, exchangeRates)}</Text>
+            <Text style={styles.totalLabel}>
+              {t('total')}: {formatCurrencyValue(totalExpense, currency, exchangeRates, locale)}
+            </Text>
 
             <View style={styles.compactLegend}>
               {stats.map((stat) => (
                 <View key={`compact-${stat.name}`} style={styles.compactLegendItem}>
                   <View style={[styles.legendDot, { backgroundColor: stat.color }]} />
-                  <Text style={styles.compactLegendText}>{stat.name}</Text>
+                  <Text style={styles.compactLegendText}>{categoryLabel(stat.name)}</Text>
                 </View>
               ))}
             </View>
@@ -89,7 +93,7 @@ export function DonutChart({ stats, totalExpense, currency, exchangeRates }: Pro
                   <View style={styles.legendTop}>
                     <View style={styles.legendNameRow}>
                       <View style={[styles.legendDot, { backgroundColor: stat.color }]} />
-                      <Text style={styles.legendName}>{stat.name}</Text>
+                      <Text style={styles.legendName}>{categoryLabel(stat.name)}</Text>
                     </View>
                     <Text style={styles.legendPercent}>%{stat.percentage}</Text>
                   </View>
@@ -97,7 +101,7 @@ export function DonutChart({ stats, totalExpense, currency, exchangeRates }: Pro
                     <View style={[styles.progressFill, { width: `${stat.percentage}%`, backgroundColor: stat.color }]} />
                   </View>
                 </View>
-                <Text style={styles.legendAmount}>{formatCurrencyValue(stat.total, currency, exchangeRates)}</Text>
+                <Text style={styles.legendAmount}>{formatCurrencyValue(stat.total, currency, exchangeRates, locale)}</Text>
               </View>
             ))}
           </View>

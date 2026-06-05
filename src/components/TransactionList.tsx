@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Search, Trash2 } from 'lucide-react-native';
 
+import { useI18n } from '../i18n';
 import { formatCurrencyValue } from '../lib/currency';
 import type { CategoryName, CurrencyCode, ExchangeRates, Expense, ExpenseCategory } from '../types/budget';
 import { CategoryIcon } from './CategoryIcon';
@@ -17,28 +18,33 @@ type Props = {
 type FilterName = CategoryName | 'Hepsi';
 
 export function TransactionList({ expenses, categories, currency, exchangeRates, onDeleteExpense }: Props) {
+  const { categoryLabel, expenseTitleLabel, locale, t } = useI18n();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<FilterName>('Hepsi');
 
   const filteredExpenses = useMemo(() => {
-    const normalizedQuery = query.trim().toLocaleLowerCase('tr-TR');
+    const normalizedQuery = query.trim().toLocaleLowerCase(locale);
     return expenses.filter((expense) => {
       const matchesFilter = filter === 'Hepsi' || expense.category === filter;
+      const localizedCategory = categoryLabel(expense.category).toLocaleLowerCase(locale);
+      const localizedTitle = expenseTitleLabel(expense.title).toLocaleLowerCase(locale);
       const matchesQuery =
         !normalizedQuery ||
-        expense.title.toLocaleLowerCase('tr-TR').includes(normalizedQuery) ||
-        expense.category.toLocaleLowerCase('tr-TR').includes(normalizedQuery);
+        expense.title.toLocaleLowerCase(locale).includes(normalizedQuery) ||
+        expense.category.toLocaleLowerCase(locale).includes(normalizedQuery) ||
+        localizedTitle.includes(normalizedQuery) ||
+        localizedCategory.includes(normalizedQuery);
 
       return matchesFilter && matchesQuery;
     });
-  }, [expenses, filter, query]);
+  }, [categoryLabel, expenseTitleLabel, expenses, filter, locale, query]);
 
   return (
     <View style={styles.card}>
       <View style={styles.header}>
         <View>
-          <Text style={styles.title}>Son İşlemler</Text>
-          <Text style={styles.subtitle}>{expenses.length} kayıt listeleniyor</Text>
+          <Text style={styles.title}>{t('latestTransactions')}</Text>
+          <Text style={styles.subtitle}>{t('transactionCount', { count: expenses.length })}</Text>
         </View>
       </View>
 
@@ -47,7 +53,7 @@ export function TransactionList({ expenses, categories, currency, exchangeRates,
         <TextInput
           value={query}
           onChangeText={setQuery}
-          placeholder="Giderlerde ara..."
+          placeholder={t('searchExpenses')}
           placeholderTextColor="#475569"
           style={styles.searchInput}
         />
@@ -58,7 +64,7 @@ export function TransactionList({ expenses, categories, currency, exchangeRates,
           onPress={() => setFilter('Hepsi')}
           style={[styles.filterPill, filter === 'Hepsi' && styles.activeAllPill]}
         >
-          <Text style={[styles.filterText, filter === 'Hepsi' && styles.activeAllText]}>Hepsi</Text>
+          <Text style={[styles.filterText, filter === 'Hepsi' && styles.activeAllText]}>{t('all')}</Text>
         </Pressable>
         {categories.map((category) => {
           const isActive = filter === category.name;
@@ -74,7 +80,7 @@ export function TransactionList({ expenses, categories, currency, exchangeRates,
                 },
               ]}
             >
-              <Text style={[styles.filterText, isActive && { color: '#f8fafc' }]}>{category.name}</Text>
+              <Text style={[styles.filterText, isActive && { color: '#f8fafc' }]}>{categoryLabel(category.name)}</Text>
             </Pressable>
           );
         })}
@@ -83,8 +89,8 @@ export function TransactionList({ expenses, categories, currency, exchangeRates,
       <View style={styles.list}>
         {filteredExpenses.length === 0 ? (
           <View style={styles.emptyBox}>
-            <Text style={styles.emptyTitle}>Harcama bulunamadı</Text>
-            <Text style={styles.emptyText}>Yeni gider ekleyebilir veya filtreleri temizleyebilirsin.</Text>
+            <Text style={styles.emptyTitle}>{t('noMatch')}</Text>
+            <Text style={styles.emptyText}>{t('noMatchText')}</Text>
           </View>
         ) : (
           filteredExpenses.map((expense) => {
@@ -104,20 +110,20 @@ export function TransactionList({ expenses, categories, currency, exchangeRates,
 
                 <View style={styles.itemContent}>
                   <Text numberOfLines={1} style={styles.itemTitle}>
-                    {expense.title}
+                    {expenseTitleLabel(expense.title)}
                   </Text>
                   <View style={styles.itemMetaRow}>
-                    <Text style={[styles.itemCategory, { color: category.color }]}>{expense.category}</Text>
+                    <Text style={[styles.itemCategory, { color: category.color }]}>{categoryLabel(expense.category)}</Text>
                     <Text style={styles.itemDate}>{expense.spentOn}</Text>
-                    {expense.pending ? <Text style={styles.pendingText}>bekliyor</Text> : null}
+                    {expense.pending ? <Text style={styles.pendingText}>{t('pending')}</Text> : null}
                   </View>
                 </View>
 
                 <View style={styles.itemRight}>
-                  <Text style={styles.itemAmount}>-{formatCurrencyValue(expense.amount, currency, exchangeRates)}</Text>
+                  <Text style={styles.itemAmount}>-{formatCurrencyValue(expense.amount, currency, exchangeRates, locale)}</Text>
                   {currency !== 'TRY' ? (
                     <Text style={styles.itemTryAmount}>
-                      ₺{expense.amount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                      ₺{expense.amount.toLocaleString(locale, { minimumFractionDigits: 2 })}
                     </Text>
                   ) : null}
                   <Pressable onPress={() => onDeleteExpense(expense.id)} hitSlop={10} style={styles.deleteButton}>

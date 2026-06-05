@@ -70,13 +70,13 @@ export function convertFromTry(amountTry: number, currency: CurrencyCode, rates:
   return amountTry * rates.rates[currency];
 }
 
-export function formatCurrencyValue(amountTry: number, currency: CurrencyCode, rates: ExchangeRates) {
+export function formatCurrencyValue(amountTry: number, currency: CurrencyCode, rates: ExchangeRates, locale = 'tr-TR') {
   const symbol = CURRENCIES.find((item) => item.code === currency)?.symbol ?? '₺';
   const converted = convertFromTry(amountTry, currency, rates);
   const sign = converted < 0 ? '-' : '';
   const absoluteValue = Math.abs(converted);
 
-  return `${sign}${symbol}${absoluteValue.toLocaleString('tr-TR', {
+  return `${sign}${symbol}${absoluteValue.toLocaleString(locale, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;

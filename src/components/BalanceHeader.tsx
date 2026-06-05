@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ArrowDownRight, ArrowUpRight, Check, Pencil, WalletCards } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
+import { useI18n } from '../i18n';
 import { formatCurrencyValue } from '../lib/currency';
 import type { CurrencyCode, ExchangeRates } from '../types/budget';
 
@@ -25,28 +26,29 @@ export function BalanceHeader({
   exchangeRates,
   onIncomeChange,
 }: Props) {
+  const { locale, t } = useI18n();
   const [isEditing, setIsEditing] = useState(false);
   const [incomeInput, setIncomeInput] = useState(String(income));
   const [error, setError] = useState('');
 
   const formattedBalance = useMemo(
-    () => formatCurrencyValue(remainingBalance, currency, exchangeRates),
-    [currency, exchangeRates, remainingBalance],
+    () => formatCurrencyValue(remainingBalance, currency, exchangeRates, locale),
+    [currency, exchangeRates, locale, remainingBalance],
   );
   const formattedIncome = useMemo(
-    () => formatCurrencyValue(income, currency, exchangeRates),
-    [currency, exchangeRates, income],
+    () => formatCurrencyValue(income, currency, exchangeRates, locale),
+    [currency, exchangeRates, income, locale],
   );
   const formattedExpense = useMemo(
-    () => formatCurrencyValue(totalExpense, currency, exchangeRates),
-    [currency, exchangeRates, totalExpense],
+    () => formatCurrencyValue(totalExpense, currency, exchangeRates, locale),
+    [currency, exchangeRates, locale, totalExpense],
   );
   const balanceTone = remainingBalance >= 0 ? styles.balancePositive : styles.balanceNegative;
 
   const saveIncome = () => {
     const parsed = Number(incomeInput.replace(',', '.'));
     if (!Number.isFinite(parsed) || parsed < 0) {
-      setError('Geçerli bir gelir girin.');
+      setError(t('incomeValidation'));
       return;
     }
 
@@ -60,12 +62,14 @@ export function BalanceHeader({
       <LinearGradient colors={['rgba(16,185,129,0.28)', 'rgba(20,184,166,0.08)']} style={styles.heroCard}>
         <View style={styles.heroTopRow}>
           <View>
-            <Text style={styles.eyebrow}>Kalan Net Bakiye ({currency})</Text>
+            <Text style={styles.eyebrow}>
+              {t('netRemainingBalance')} ({currency})
+            </Text>
             <Text style={[styles.balance, balanceTone]}>{formattedBalance}</Text>
             {currency !== 'TRY' ? (
               <Text style={styles.tryHint}>
-                TRY karşılığı ₺
-                {remainingBalance.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {t('tryEquivalent')} ₺
+                {remainingBalance.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </Text>
             ) : null}
           </View>
@@ -75,15 +79,18 @@ export function BalanceHeader({
         </View>
         <Text style={styles.heroHint}>
           {remainingBalance >= 0
-            ? `Kur tarihi: ${exchangeRates.sourceDate}${exchangeRates.isStale ? ' (son kayıtlı)' : ''}`
-            : 'Bu ay bütçeni aştın, giderleri gözden geçirebilirsin.'}
+            ? t('rateDate', {
+                date: exchangeRates.sourceDate,
+                stale: exchangeRates.isStale ? t('rateStaleParen') : '',
+              })
+            : t('budgetExceeded')}
         </Text>
       </LinearGradient>
 
       <View style={styles.summaryRow}>
         <View style={styles.summaryCard}>
           <View style={styles.summaryHeader}>
-            <Text style={styles.summaryLabel}>Toplam Gelir</Text>
+            <Text style={styles.summaryLabel}>{t('totalIncome')}</Text>
             <ArrowUpRight color="#34d399" size={17} />
           </View>
           {isEditing ? (
@@ -102,7 +109,7 @@ export function BalanceHeader({
                   <Check color="#022c22" size={18} />
                 </Pressable>
               </View>
-              <Text style={styles.editHint}>Gelir TRY olarak kaydedilir.</Text>
+              <Text style={styles.editHint}>{t('incomeSavedAsTry')}</Text>
               {error ? <Text style={styles.errorText}>{error}</Text> : null}
             </View>
           ) : (
@@ -123,11 +130,11 @@ export function BalanceHeader({
 
         <View style={styles.summaryCard}>
           <View style={styles.summaryHeader}>
-            <Text style={styles.summaryLabel}>Toplam Gider</Text>
+            <Text style={styles.summaryLabel}>{t('totalExpense')}</Text>
             <ArrowDownRight color="#fb7185" size={17} />
           </View>
           <Text style={[styles.summaryValue, styles.expenseValue]}>{formattedExpense}</Text>
-          <Text style={styles.ratioText}>Gelirin %{spendRatio}</Text>
+          <Text style={styles.ratioText}>{t('usedIncomeRatio', { ratio: spendRatio })}</Text>
         </View>
       </View>
     </View>

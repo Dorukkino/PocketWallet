@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 
+import { useI18n } from '../i18n';
 import { fetchExchangeRates, getCachedExchangeRates, getFallbackExchangeRates } from '../lib/currency';
 import type { ExchangeRates } from '../types/budget';
 
 export function useExchangeRates() {
+  const { t } = useI18n();
   const [rates, setRates] = useState<ExchangeRates>(getFallbackExchangeRates());
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -21,11 +23,11 @@ export function useExchangeRates() {
       setError(null);
     } catch {
       setRates((currentRates) => ({ ...(cachedRates ?? currentRates), isStale: true }));
-      setError('Güncel kur alınamadı, son kayıtlı kur gösteriliyor.');
+      setError(t('currencyFetchFailed'));
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     let mounted = true;
@@ -45,7 +47,7 @@ export function useExchangeRates() {
       } catch {
         if (mounted) {
           setRates((currentRates) => ({ ...(cachedRates ?? currentRates), isStale: true }));
-          setError('Güncel kur alınamadı, son kayıtlı kur gösteriliyor.');
+          setError(t('currencyFetchFailed'));
         }
       } finally {
         if (mounted) {
@@ -59,7 +61,7 @@ export function useExchangeRates() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [t]);
 
   return { rates, isLoading, error, refreshRates };
 }

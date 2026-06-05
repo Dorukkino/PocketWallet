@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Circle, Path } from 'react-native-svg';
 
 import { useI18n } from '../i18n';
 import { formatCurrencyValue } from '../lib/currency';
@@ -39,6 +39,7 @@ const createPieSlicePath = (startAngle: number, endAngle: number) => {
 export function DonutChart({ stats, totalExpense, currency, exchangeRates }: Props) {
   const { categoryLabel, locale, t } = useI18n();
   let accumulatedAngle = 0;
+  const hasSingleFullSlice = stats.length === 1;
 
   return (
     <View style={styles.card}>
@@ -55,20 +56,18 @@ export function DonutChart({ stats, totalExpense, currency, exchangeRates }: Pro
           <View style={styles.chartPanel}>
             <View style={styles.chartWrap}>
               <Svg width={220} height={220} viewBox="0 0 120 120">
-              {stats.map((stat) => {
-                const sliceAngle = (stat.total / totalExpense) * 360;
-                const startAngle = accumulatedAngle;
-                const endAngle = accumulatedAngle + sliceAngle;
-                accumulatedAngle = endAngle;
+                {hasSingleFullSlice ? (
+                  <Circle cx={center} cy={center} r={radius} fill={stats[0].color} />
+                ) : (
+                  stats.map((stat) => {
+                    const sliceAngle = (stat.total / totalExpense) * 360;
+                    const startAngle = accumulatedAngle;
+                    const endAngle = accumulatedAngle + sliceAngle;
+                    accumulatedAngle = endAngle;
 
-                return (
-                  <Path
-                    key={stat.name}
-                    d={createPieSlicePath(startAngle, endAngle)}
-                    fill={stat.color}
-                  />
-                );
-              })}
+                    return <Path key={stat.name} d={createPieSlicePath(startAngle, endAngle)} fill={stat.color} />;
+                  })
+                )}
               </Svg>
             </View>
 

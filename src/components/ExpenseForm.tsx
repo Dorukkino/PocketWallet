@@ -101,11 +101,6 @@ export function ExpenseForm({
   const submit = async () => {
     const parsedAmount = Number(amount.replace(',', '.'));
 
-    if (!title.trim()) {
-      setError(t('writeExpenseTitleError'));
-      return;
-    }
-
     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
       setError(t('validAmountError'));
       return;
@@ -114,7 +109,7 @@ export function ExpenseForm({
     setIsSaving(true);
     setError('');
     await onAddExpense({
-      title: title.trim(),
+      title: title.trim() || categoryLabel(category),
       amount: parsedAmount,
       category,
       spentOn: spentOn || defaultSpentOn,

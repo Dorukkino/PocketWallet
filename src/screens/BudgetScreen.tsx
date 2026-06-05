@@ -23,7 +23,7 @@ import { TransactionList } from '../components/TransactionList';
 import { CURRENCIES } from '../constants/categories';
 import { useExchangeRates } from '../hooks/useExchangeRates';
 import { useBudget } from '../hooks/useBudget';
-import { useI18n } from '../i18n';
+import { TranslationKey, useI18n } from '../i18n';
 import { formatCurrencyValue } from '../lib/currency';
 import { supabase } from '../lib/supabase';
 import type { BudgetPeriod } from '../types/budget';
@@ -51,6 +51,22 @@ const formatMonthName = (monthKey: string, locale: string) => {
   const [year, month] = monthKey.split('-').map(Number);
   const formatted = new Intl.DateTimeFormat(locale, { month: 'long' }).format(new Date(year, month - 1, 1));
   return formatted.charAt(0).toLocaleUpperCase(locale) + formatted.slice(1);
+};
+
+const getSavingsAdviceKey = (savingsPercent: number): TranslationKey => {
+  if (savingsPercent > 74) {
+    return 'adviceSavingsExcellent';
+  }
+
+  if (savingsPercent > 49) {
+    return 'adviceSavingsHigh';
+  }
+
+  if (savingsPercent > 24) {
+    return 'adviceSavingsMedium';
+  }
+
+  return 'adviceSavingsLow';
 };
 
 export function BudgetScreen({ session }: Props) {
@@ -108,6 +124,11 @@ export function BudgetScreen({ session }: Props) {
     await Promise.all([budget.refreshBudget(), exchange.refreshRates(), wait(800)]);
     setIsRefreshing(false);
   }, [budget, exchange]);
+  const savingsPercent = Math.min(
+    100,
+    Math.max(0, Math.round((budget.remainingBalance / Math.max(budget.income, 1)) * 100)),
+  );
+  const savingsAdviceKey = getSavingsAdviceKey(savingsPercent);
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.screen}>
@@ -272,9 +293,7 @@ export function BudgetScreen({ session }: Props) {
             {budget.income === 0 && budget.totalExpense === 0
               ? t('adviceEmpty')
               : budget.remainingBalance >= 0
-                ? t('advicePositive', {
-                    percent: Math.max(0, Math.round((budget.remainingBalance / Math.max(budget.income, 1)) * 100)),
-                  })
+                ? t(savingsAdviceKey, { percent: savingsPercent })
                 : t('adviceNegative')}
           </Text>
         </View>

@@ -1,8 +1,11 @@
 import { useCallback, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Modal,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   Platform,
   Pressable,
   RefreshControl,
@@ -33,6 +36,8 @@ type Props = {
 };
 
 const wait = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+const REFRESH_PROGRESS_OFFSET = 300;
+const IOS_REFRESH_INDICATOR_TOP = 132;
 
 const formatDateLabel = (dateKey: string, locale: string) => {
   const [year, month, day] = dateKey.split('-').map(Number);
@@ -74,6 +79,7 @@ export function BudgetScreen({ session }: Props) {
   const budget = useBudget(session);
   const exchange = useExchangeRates();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [pullDistance, setPullDistance] = useState(0);
   const [isMonthPickerVisible, setIsMonthPickerVisible] = useState(false);
   const [formResetSignal, setFormResetSignal] = useState(0);
   const selectedMonthIndex = Math.max(
@@ -124,33 +130,55 @@ export function BudgetScreen({ session }: Props) {
     await Promise.all([budget.refreshBudget(), exchange.refreshRates(), wait(800)]);
     setIsRefreshing(false);
   }, [budget, exchange]);
+
+  const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (Platform.OS !== 'ios') {
+      return;
+    }
+
+    const nextPullDistance = Math.max(0, -event.nativeEvent.contentOffset.y);
+    setPullDistance((currentPullDistance) =>
+      Math.abs(currentPullDistance - nextPullDistance) < 2 ? currentPullDistance : nextPullDistance,
+    );
+  }, []);
+
   const savingsPercent = Math.min(
     100,
     Math.max(0, Math.round((budget.remainingBalance / Math.max(budget.income, 1)) * 100)),
   );
   const savingsAdviceKey = getSavingsAdviceKey(savingsPercent);
+  const showIosRefreshIndicator = Platform.OS === 'ios' && pullDistance > 12;
+  const iosRefreshIndicatorOpacity = Math.min(1, pullDistance / 76);
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.screen}>
       <LinearGradient colors={['#020617', '#07111f', '#020617']} style={StyleSheet.absoluteFill} />
       <View style={styles.glowTop} />
       <View style={styles.glowBottom} />
+      {showIosRefreshIndicator ? (
+        <View style={[styles.iosRefreshIndicator, { opacity: iosRefreshIndicatorOpacity }]} pointerEvents="none">
+          <ActivityIndicator color="#34d399" />
+        </View>
+      ) : null}
 
       <ScrollView
         alwaysBounceVertical
         bounces
         contentContainerStyle={styles.content}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
+        style={styles.scrollView}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
             onRefresh={refreshScreen}
-            tintColor="#34d399"
+            tintColor={Platform.OS === 'ios' ? 'transparent' : '#34d399'}
             colors={['#34d399']}
             progressBackgroundColor="#0f172a"
-            progressViewOffset={48}
-            title={t('refreshing')}
-            titleColor="#94a3b8"
+            progressViewOffset={REFRESH_PROGRESS_OFFSET}
+            title={Platform.OS === 'ios' ? undefined : t('refreshing')}
+            titleColor={Platform.OS === 'ios' ? 'transparent' : '#94a3b8'}
           />
         }
       >
@@ -355,11 +383,28 @@ const styles = StyleSheet.create({
     backgroundColor: '#020617',
     flex: 1,
   },
+  scrollView: {
+    zIndex: 1,
+  },
   content: {
     gap: 18,
     paddingBottom: 34,
     paddingHorizontal: 18,
     paddingTop: 62,
+  },
+  iosRefreshIndicator: {
+    alignItems: 'center',
+    alignSelf: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.92)',
+    borderColor: 'rgba(52, 211, 153, 0.28)',
+    borderRadius: 22,
+    borderWidth: 1,
+    height: 44,
+    justifyContent: 'center',
+    position: 'absolute',
+    top: IOS_REFRESH_INDICATOR_TOP,
+    width: 44,
+    zIndex: 0,
   },
   glowTop: {
     backgroundColor: 'rgba(16, 185, 129, 0.14)',

@@ -10,6 +10,7 @@ import { CategoryIcon } from './CategoryIcon';
 type Props = {
   categories: ExpenseCategory[];
   exchangeRates: ExchangeRates;
+  defaultSpentOn: string;
   onAddExpense: (expense: {
     title: string;
     amount: number;
@@ -20,7 +21,6 @@ type Props = {
   onDeleteCategory: (id: string) => Promise<boolean>;
 };
 
-const today = () => new Date().toISOString().slice(0, 10);
 const CATEGORY_ICON_OPTIONS = [
   'briefcase',
   'receipt',
@@ -56,7 +56,14 @@ const CATEGORY_ICON_OPTIONS = [
   'banknote',
 ];
 
-export function ExpenseForm({ categories, exchangeRates, onAddExpense, onAddCategory, onDeleteCategory }: Props) {
+export function ExpenseForm({
+  categories,
+  exchangeRates,
+  defaultSpentOn,
+  onAddExpense,
+  onAddCategory,
+  onDeleteCategory,
+}: Props) {
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState<CategoryName>(categories[0]?.name ?? 'Diğer');
@@ -64,7 +71,7 @@ export function ExpenseForm({ categories, exchangeRates, onAddExpense, onAddCate
   const [selectedIcon, setSelectedIcon] = useState('briefcase');
   const [selectedColor, setSelectedColor] = useState(CATEGORY_COLORS[0]);
   const [isCategoryModalVisible, setIsCategoryModalVisible] = useState(false);
-  const [spentOn, setSpentOn] = useState(today());
+  const [spentOn, setSpentOn] = useState(defaultSpentOn);
   const [error, setError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const parsedPreviewAmount = Number(amount.replace(',', '.'));
@@ -76,6 +83,12 @@ export function ExpenseForm({ categories, exchangeRates, onAddExpense, onAddCate
       setCategory(categories[0].name);
     }
   }, [categories, category]);
+
+  useEffect(() => {
+    if (!title && !amount) {
+      setSpentOn(defaultSpentOn);
+    }
+  }, [amount, defaultSpentOn, title]);
 
   const submit = async () => {
     const parsedAmount = Number(amount.replace(',', '.'));
@@ -96,11 +109,11 @@ export function ExpenseForm({ categories, exchangeRates, onAddExpense, onAddCate
       title: title.trim(),
       amount: parsedAmount,
       category,
-      spentOn: spentOn || today(),
+      spentOn: spentOn || defaultSpentOn,
     });
     setTitle('');
     setAmount('');
-    setSpentOn(today());
+    setSpentOn(defaultSpentOn);
     setIsSaving(false);
   };
 

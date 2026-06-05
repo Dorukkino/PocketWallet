@@ -1,7 +1,8 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   RefreshControl,
@@ -12,7 +13,7 @@ import {
 } from 'react-native';
 import type { Session } from '@supabase/supabase-js';
 import { LinearGradient } from 'expo-linear-gradient';
-import { LogOut, WalletCards } from 'lucide-react-native';
+import { CalendarDays, ChevronLeft, ChevronRight, LogOut, WalletCards, X } from 'lucide-react-native';
 
 import { BalanceHeader } from '../components/BalanceHeader';
 import { DonutChart } from '../components/DonutChart';
@@ -23,6 +24,7 @@ import { useExchangeRates } from '../hooks/useExchangeRates';
 import { useBudget } from '../hooks/useBudget';
 import { formatCurrencyValue } from '../lib/currency';
 import { supabase } from '../lib/supabase';
+import type { BudgetPeriod } from '../types/budget';
 
 type Props = {
   session: Session;
@@ -30,10 +32,43 @@ type Props = {
 
 const wait = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
+const formatDateLabel = (dateKey: string) => {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  return new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'long' }).format(new Date(year, month - 1, day));
+};
+
 export function BudgetScreen({ session }: Props) {
   const budget = useBudget(session);
   const exchange = useExchangeRates();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isMonthPickerVisible, setIsMonthPickerVisible] = useState(false);
+  const selectedMonthIndex = Math.max(
+    0,
+    budget.monthOptions.findIndex((period) => period.monthKey === budget.selectedPeriod.monthKey),
+  );
+  const newerPeriod = selectedMonthIndex > 0 ? budget.monthOptions[selectedMonthIndex - 1] : null;
+  const olderPeriod =
+    selectedMonthIndex < budget.monthOptions.length - 1 ? budget.monthOptions[selectedMonthIndex + 1] : null;
+  const monthGroups = useMemo(() => {
+    const groups: Array<{ year: string; periods: BudgetPeriod[] }> = [];
+
+    budget.monthOptions.forEach((period) => {
+      const year = period.monthKey.slice(0, 4);
+      const existingGroup = groups.find((group) => group.year === year);
+      if (existingGroup) {
+        existingGroup.periods.push(period);
+      } else {
+        groups.push({ year, periods: [period] });
+      }
+    });
+
+    return groups;
+  }, [budget.monthOptions]);
+
+  const selectMonth = (monthKey: string) => {
+    budget.selectMonth(monthKey);
+    setIsMonthPickerVisible(false);
+  };
 
   const signOut = () => {
     Alert.alert('Çıkış Yap', 'PocketWallet hesabından çıkmak istiyor musun?', [
@@ -93,6 +128,47 @@ export function BudgetScreen({ session }: Props) {
           </Pressable>
         </View>
 
+        <View style={styles.monthCard}>
+          <View style={styles.monthHeader}>
+            <View style={styles.monthIcon}>
+              <CalendarDays color="#5eead4" size={20} />
+            </View>
+            <View style={styles.monthInfo}>
+              <Text style={styles.monthTitle}>{budget.selectedPeriod.label}</Text>
+              <Text style={styles.monthRange}>
+                {formatDateLabel(budget.selectedPeriod.startDate)} - {formatDateLabel(budget.selectedPeriod.endDate)}
+              </Text>
+            </View>
+            <Pressable onPress={() => setIsMonthPickerVisible(true)} style={styles.monthCountBadge}>
+              <Text style={styles.monthCountText}>{budget.monthOptions.length} ay</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.monthNav}>
+            <Pressable
+              disabled={!olderPeriod}
+              onPress={() => olderPeriod && budget.selectMonth(olderPeriod.monthKey)}
+              style={[styles.monthNavButton, !olderPeriod && styles.monthNavButtonDisabled]}
+            >
+              <ChevronLeft color={olderPeriod ? '#cbd5e1' : '#475569'} size={16} />
+              <Text style={[styles.monthNavText, !olderPeriod && styles.monthNavTextDisabled]}>Önceki</Text>
+            </Pressable>
+
+            <Pressable onPress={() => setIsMonthPickerVisible(true)} style={styles.monthPickerButton}>
+              <Text style={styles.monthPickerButtonText}>Ay değiştir</Text>
+            </Pressable>
+
+            <Pressable
+              disabled={!newerPeriod}
+              onPress={() => newerPeriod && budget.selectMonth(newerPeriod.monthKey)}
+              style={[styles.monthNavButton, !newerPeriod && styles.monthNavButtonDisabled]}
+            >
+              <Text style={[styles.monthNavText, !newerPeriod && styles.monthNavTextDisabled]}>Sonraki</Text>
+              <ChevronRight color={newerPeriod ? '#cbd5e1' : '#475569'} size={16} />
+            </Pressable>
+          </View>
+        </View>
+
         <View style={styles.currencyHeader}>
           <Text style={styles.currencyTitle}>Günlük Kur Takibi</Text>
           <Text style={styles.currencySub}>
@@ -141,6 +217,7 @@ export function BudgetScreen({ session }: Props) {
         <ExpenseForm
           categories={budget.categories}
           exchangeRates={exchange.rates}
+          defaultSpentOn={budget.defaultExpenseDate}
           onAddExpense={budget.addExpense}
           onAddCategory={budget.addCategory}
           onDeleteCategory={budget.deleteCategory}
@@ -164,12 +241,62 @@ export function BudgetScreen({ session }: Props) {
         <View style={styles.adviceCard}>
           <Text style={styles.adviceTitle}>Finansal Öneri</Text>
           <Text style={styles.adviceText}>
-            {budget.remainingBalance > 0
-              ? `Bu ay ${Math.max(0, Math.round((budget.remainingBalance / Math.max(budget.income, 1)) * 100))}% tasarruf alanın var. Kalan bütçeyi yatırım veya gelecek ay devri için ayırabilirsin.`
-              : 'Bu ay harcamalar geliri geçti. Eğlence, giyim veya dış harcama kalemlerini sınırlamak bütçeyi hızlı toparlar.'}
+            {budget.income === 0 && budget.totalExpense === 0
+              ? 'Bu ay için gelir ve gider henüz girilmedi. Ayı yönetmeye gelirini ekleyerek başlayabilirsin.'
+              : budget.remainingBalance >= 0
+                ? `Bu ay ${Math.max(0, Math.round((budget.remainingBalance / Math.max(budget.income, 1)) * 100))}% tasarruf alanın var. Kalan bütçeyi yatırım veya birikim için ayırabilirsin.`
+                : 'Bu ay harcamalar geliri geçti. Eğlence, giyim veya dış harcama kalemlerini sınırlamak bütçeyi hızlı toparlar.'}
           </Text>
         </View>
       </ScrollView>
+
+      <Modal
+        animationType="slide"
+        transparent
+        visible={isMonthPickerVisible}
+        onRequestClose={() => setIsMonthPickerVisible(false)}
+      >
+        <View style={styles.monthModalBackdrop}>
+          <View style={styles.monthModalCard}>
+            <View style={styles.monthModalHeader}>
+              <View>
+                <Text style={styles.monthModalTitle}>Ay Seç</Text>
+                <Text style={styles.monthModalSubtitle}>Yıla göre hızlıca geçmiş ayına git.</Text>
+              </View>
+              <Pressable onPress={() => setIsMonthPickerVisible(false)} style={styles.monthModalClose}>
+                <X color="#94a3b8" size={18} />
+              </Pressable>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.monthModalContent}>
+              {monthGroups.map((group) => (
+                <View key={group.year} style={styles.monthYearGroup}>
+                  <Text style={styles.monthYearTitle}>{group.year}</Text>
+                  <View style={styles.monthGrid}>
+                    {group.periods.map((period) => {
+                      const isSelected = period.monthKey === budget.selectedPeriod.monthKey;
+                      return (
+                        <Pressable
+                          key={period.monthKey}
+                          onPress={() => selectMonth(period.monthKey)}
+                          style={[styles.monthGridItem, isSelected && styles.monthGridItemActive]}
+                        >
+                          <Text style={[styles.monthGridLabel, isSelected && styles.monthGridTextActive]}>
+                            {period.label.replace(` ${group.year}`, '')}
+                          </Text>
+                          <Text style={[styles.monthGridRange, isSelected && styles.monthGridTextActive]}>
+                            {formatDateLabel(period.startDate)} - {formatDateLabel(period.endDate)}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -242,6 +369,99 @@ const styles = StyleSheet.create({
     height: 40,
     justifyContent: 'center',
     width: 40,
+  },
+  monthCard: {
+    backgroundColor: 'rgba(15, 23, 42, 0.82)',
+    borderColor: 'rgba(45, 212, 191, 0.2)',
+    borderRadius: 22,
+    borderWidth: 1,
+    gap: 12,
+    padding: 13,
+  },
+  monthHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 10,
+  },
+  monthIcon: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(45, 212, 191, 0.12)',
+    borderColor: 'rgba(94, 234, 212, 0.18)',
+    borderRadius: 14,
+    borderWidth: 1,
+    height: 38,
+    justifyContent: 'center',
+    width: 38,
+  },
+  monthInfo: {
+    flex: 1,
+  },
+  monthTitle: {
+    color: '#f8fafc',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  monthRange: {
+    color: '#94a3b8',
+    fontSize: 11,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  monthCountBadge: {
+    backgroundColor: 'rgba(45, 212, 191, 0.1)',
+    borderColor: 'rgba(94, 234, 212, 0.18)',
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+  },
+  monthCountText: {
+    color: '#5eead4',
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  monthNav: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'space-between',
+  },
+  monthNavButton: {
+    alignItems: 'center',
+    backgroundColor: '#020617',
+    borderColor: '#1e293b',
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  monthNavButtonDisabled: {
+    opacity: 0.55,
+  },
+  monthNavText: {
+    color: '#cbd5e1',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  monthNavTextDisabled: {
+    color: '#475569',
+  },
+  monthPickerButton: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(45, 212, 191, 0.1)',
+    borderColor: 'rgba(94, 234, 212, 0.18)',
+    borderRadius: 999,
+    borderWidth: 1,
+    flex: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  monthPickerButtonText: {
+    color: '#5eead4',
+    fontSize: 11,
+    fontWeight: '900',
   },
   currencyHeader: {
     gap: 3,
@@ -332,5 +552,90 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     lineHeight: 18,
     marginTop: 7,
+  },
+  monthModalBackdrop: {
+    backgroundColor: 'rgba(2, 6, 23, 0.78)',
+    flex: 1,
+    justifyContent: 'flex-end',
+    padding: 14,
+  },
+  monthModalCard: {
+    backgroundColor: '#0f172a',
+    borderColor: '#1e293b',
+    borderRadius: 28,
+    borderWidth: 1,
+    maxHeight: '78%',
+    padding: 18,
+  },
+  monthModalHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  monthModalTitle: {
+    color: '#f8fafc',
+    fontSize: 20,
+    fontWeight: '900',
+  },
+  monthModalSubtitle: {
+    color: '#64748b',
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 3,
+  },
+  monthModalClose: {
+    alignItems: 'center',
+    backgroundColor: '#020617',
+    borderColor: '#1e293b',
+    borderRadius: 13,
+    borderWidth: 1,
+    height: 38,
+    justifyContent: 'center',
+    width: 38,
+  },
+  monthModalContent: {
+    gap: 18,
+    paddingBottom: 8,
+  },
+  monthYearGroup: {
+    gap: 10,
+  },
+  monthYearTitle: {
+    color: '#94a3b8',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  monthGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  monthGridItem: {
+    backgroundColor: '#020617',
+    borderColor: '#1e293b',
+    borderRadius: 16,
+    borderWidth: 1,
+    flexBasis: '31%',
+    flexGrow: 1,
+    padding: 10,
+  },
+  monthGridItemActive: {
+    backgroundColor: '#34d399',
+    borderColor: '#34d399',
+  },
+  monthGridLabel: {
+    color: '#e2e8f0',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  monthGridRange: {
+    color: '#64748b',
+    fontSize: 9,
+    fontWeight: '800',
+    marginTop: 5,
+  },
+  monthGridTextActive: {
+    color: '#022c22',
   },
 });

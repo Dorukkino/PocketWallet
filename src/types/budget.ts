@@ -22,11 +22,20 @@ export type Expense = {
   pending?: boolean;
 };
 
+export type BudgetPeriod = {
+  monthKey: string;
+  label: string;
+  startDate: string;
+  endDate: string;
+};
+
 export type BudgetSnapshot = {
   income: number;
   currency: CurrencyCode;
   expenses: Expense[];
   categories?: ExpenseCategory[];
+  budgetStartDate?: string;
+  monthlyIncomes?: Record<string, number>;
   updatedAt: string;
 };
 

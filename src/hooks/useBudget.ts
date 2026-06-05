@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 
-import { CATEGORIES, CATEGORY_COLORS, DEFAULT_EXPENSES, DEFAULT_INCOME } from '../constants/categories';
+import { CATEGORIES, CATEGORY_COLORS, DEFAULT_EXPENSES } from '../constants/categories';
 import { readBudgetSnapshot, writeBudgetSnapshot } from '../lib/storage';
 import { supabase } from '../lib/supabase';
-import type { BudgetSnapshot, CategoryName, CurrencyCode, Expense, ExpenseCategory } from '../types/budget';
+import type { BudgetPeriod, BudgetSnapshot, CategoryName, CurrencyCode, Expense, ExpenseCategory } from '../types/budget';
 
 type ExpenseInsert = {
   title: string;
@@ -13,7 +13,59 @@ type ExpenseInsert = {
   spentOn: string;
 };
 
-const today = () => new Date().toISOString().slice(0, 10);
+const padDatePart = (value: number) => String(value).padStart(2, '0');
+
+const dateKeyFromDate = (date: Date) =>
+  `${date.getFullYear()}-${padDatePart(date.getMonth() + 1)}-${padDatePart(date.getDate())}`;
+
+const today = () => dateKeyFromDate(new Date());
+
+const dateKeyFromIso = (value?: string | null) => {
+  if (!value) {
+    return today();
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? today() : dateKeyFromDate(date);
+};
+
+const parseDateKey = (value: string) => {
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(year, month - 1, day);
+};
+
+const monthKeyFromDateKey = (dateKey: string) => dateKey.slice(0, 7);
+
+const monthKeyFromDate = (date: Date) => monthKeyFromDateKey(dateKeyFromDate(date));
+
+const addMonths = (monthKey: string, offset: number) => {
+  const [year, month] = monthKey.split('-').map(Number);
+  return monthKeyFromDate(new Date(year, month - 1 + offset, 1));
+};
+
+const startOfMonthKey = (monthKey: string) => `${monthKey}-01`;
+
+const endOfMonthKey = (monthKey: string) => {
+  const [year, month] = monthKey.split('-').map(Number);
+  return dateKeyFromDate(new Date(year, month, 0));
+};
+
+const formatMonthLabel = (monthKey: string) => {
+  const formatted = new Intl.DateTimeFormat('tr-TR', { month: 'long', year: 'numeric' }).format(
+    parseDateKey(startOfMonthKey(monthKey)),
+  );
+  return formatted.charAt(0).toLocaleUpperCase('tr-TR') + formatted.slice(1);
+};
+
+const createBudgetPeriod = (monthKey: string, budgetStartDate: string): BudgetPeriod => {
+  const firstMonthKey = monthKeyFromDateKey(budgetStartDate);
+  return {
+    monthKey,
+    label: formatMonthLabel(monthKey),
+    startDate: monthKey === firstMonthKey ? budgetStartDate : startOfMonthKey(monthKey),
+    endDate: endOfMonthKey(monthKey),
+  };
+};
 
 const makeUuid = () =>
   'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (char) => {
@@ -66,13 +118,18 @@ const normalizeCategoryName = (name: string) => name.trim().replace(/\s+/g, ' ')
 
 export function useBudget(session: Session | null) {
   const userId = session?.user.id;
-  const [income, setIncomeState] = useState(DEFAULT_INCOME);
+  const fallbackBudgetStartDate = dateKeyFromIso(session?.user.created_at);
   const [currency, setCurrencyState] = useState<CurrencyCode>('TRY');
   const [expenses, setExpenses] = useState<Expense[]>(DEFAULT_EXPENSES);
   const [categories, setCategories] = useState<ExpenseCategory[]>(CATEGORIES);
+  const [monthlyIncomes, setMonthlyIncomes] = useState<Record<string, number>>({});
+  const [budgetStartDate, setBudgetStartDate] = useState(fallbackBudgetStartDate);
+  const [selectedMonthKey, setSelectedMonthKey] = useState(monthKeyFromDateKey(today()));
   const [isHydrating, setIsHydrating] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const income = monthlyIncomes[selectedMonthKey] ?? 0;
 
   const snapshot = useMemo<BudgetSnapshot>(
     () => ({
@@ -80,9 +137,11 @@ export function useBudget(session: Session | null) {
       currency,
       expenses,
       categories,
+      budgetStartDate,
+      monthlyIncomes,
       updatedAt: new Date().toISOString(),
     }),
-    [categories, currency, expenses, income],
+    [budgetStartDate, categories, currency, expenses, income, monthlyIncomes],
   );
 
   useEffect(() => {
@@ -94,12 +153,19 @@ export function useBudget(session: Session | null) {
 
       const cached = await readBudgetSnapshot(userId);
       if (mounted && cached) {
-        setIncomeState(cached.income);
         setCurrencyState(cached.currency);
         setExpenses(cached.expenses);
+        setMonthlyIncomes(cached.monthlyIncomes ?? {});
+        if (cached.budgetStartDate) {
+          setBudgetStartDate(cached.budgetStartDate);
+        } else {
+          setBudgetStartDate(fallbackBudgetStartDate);
+        }
         if (cached.categories?.length) {
           setCategories(cached.categories);
         }
+      } else if (mounted) {
+        setBudgetStartDate(fallbackBudgetStartDate);
       }
 
       if (!userId) {
@@ -131,20 +197,14 @@ export function useBudget(session: Session | null) {
       if (settingsResult.error || expensesResult.error || categoriesResult.error) {
         setError('Bulut verileri alınamadı, yerel verilerle devam ediliyor.');
       } else {
-        const remoteIncome = settingsResult.data?.monthly_income;
         const remoteCurrency = settingsResult.data?.currency as CurrencyCode | undefined;
         const remoteExpenses = expensesResult.data?.map(fromRemoteExpense) ?? [];
         const remoteCategories = categoriesResult.data?.map(fromRemoteCategory) ?? [];
 
-        if (remoteIncome !== undefined && remoteIncome !== null) {
-          setIncomeState(Number(remoteIncome));
-        }
         if (remoteCurrency) {
           setCurrencyState(remoteCurrency);
         }
-        if (remoteExpenses.length > 0) {
-          setExpenses(remoteExpenses);
-        }
+        setExpenses(remoteExpenses);
         if (remoteCategories.length > 0) {
           setCategories(remoteCategories);
         } else {
@@ -165,7 +225,7 @@ export function useBudget(session: Session | null) {
         if (!settingsResult.data) {
           await supabase.from('user_settings').upsert({
             user_id: userId,
-            monthly_income: cached?.income ?? DEFAULT_INCOME,
+            monthly_income: 0,
             currency: cached?.currency ?? 'TRY',
           });
         }
@@ -180,7 +240,7 @@ export function useBudget(session: Session | null) {
     return () => {
       mounted = false;
     };
-  }, [userId]);
+  }, [fallbackBudgetStartDate, userId]);
 
   useEffect(() => {
     if (!isHydrating) {
@@ -190,18 +250,50 @@ export function useBudget(session: Session | null) {
     }
   }, [isHydrating, snapshot, userId]);
 
+  const selectedPeriod = useMemo(
+    () => createBudgetPeriod(selectedMonthKey, budgetStartDate),
+    [budgetStartDate, selectedMonthKey],
+  );
+
+  const monthOptions = useMemo(() => {
+    const firstMonthKey = monthKeyFromDateKey(budgetStartDate);
+    const lastMonthKey = monthKeyFromDate(new Date());
+    const options: BudgetPeriod[] = [];
+    let nextMonthKey = firstMonthKey;
+
+    while (nextMonthKey <= lastMonthKey) {
+      options.push(createBudgetPeriod(nextMonthKey, budgetStartDate));
+      nextMonthKey = addMonths(nextMonthKey, 1);
+    }
+
+    return options.reverse();
+  }, [budgetStartDate]);
+
+  const periodExpenses = useMemo(
+    () =>
+      expenses.filter((expense) => expense.spentOn >= selectedPeriod.startDate && expense.spentOn <= selectedPeriod.endDate),
+    [expenses, selectedPeriod.endDate, selectedPeriod.startDate],
+  );
+
+  const defaultExpenseDate = useMemo(() => {
+    const currentDate = today();
+    return currentDate >= selectedPeriod.startDate && currentDate <= selectedPeriod.endDate
+      ? currentDate
+      : selectedPeriod.startDate;
+  }, [selectedPeriod.endDate, selectedPeriod.startDate]);
+
   const totals = useMemo(() => {
-    const totalExpense = expenses.reduce((sum, item) => sum + item.amount, 0);
+    const totalExpense = periodExpenses.reduce((sum, item) => sum + item.amount, 0);
     return {
       totalExpense,
       remainingBalance: income - totalExpense,
       spendRatio: income > 0 ? Math.round((totalExpense / income) * 100) : 0,
     };
-  }, [expenses, income]);
+  }, [periodExpenses, income]);
 
   const categoryStats = useMemo(() => {
     return categories.map((category) => {
-      const total = expenses
+      const total = periodExpenses
         .filter((item) => item.category === category.name)
         .reduce((sum, item) => sum + item.amount, 0);
 
@@ -213,29 +305,16 @@ export function useBudget(session: Session | null) {
         percentage: totals.totalExpense > 0 ? Math.round((total / totals.totalExpense) * 100) : 0,
       };
     }).filter((item) => item.total > 0);
-  }, [categories, expenses, totals.totalExpense]);
+  }, [categories, periodExpenses, totals.totalExpense]);
 
   const updateIncome = useCallback(
     async (nextIncome: number) => {
-      setIncomeState(nextIncome);
-
-      if (!userId) {
-        return;
-      }
-
-      setIsSyncing(true);
-      const { error: updateError } = await supabase.from('user_settings').upsert({
-        user_id: userId,
-        monthly_income: nextIncome,
-        currency,
-      });
-      setIsSyncing(false);
-
-      if (updateError) {
-        setError('Gelir buluta kaydedilemedi, yerel kayıt korundu.');
-      }
+      setMonthlyIncomes((current) => ({
+        ...current,
+        [selectedMonthKey]: nextIncome,
+      }));
     },
-    [currency, userId],
+    [selectedMonthKey],
   );
 
   const updateCurrency = useCallback(
@@ -248,7 +327,7 @@ export function useBudget(session: Session | null) {
 
       const { error: updateError } = await supabase.from('user_settings').upsert({
         user_id: userId,
-        monthly_income: income,
+        monthly_income: 0,
         currency: nextCurrency,
       });
 
@@ -256,7 +335,7 @@ export function useBudget(session: Session | null) {
         setError('Para birimi buluta kaydedilemedi, yerel kayıt korundu.');
       }
     },
-    [income, userId],
+    [userId],
   );
 
   const addExpense = useCallback(
@@ -445,10 +524,6 @@ export function useBudget(session: Session | null) {
       return;
     }
 
-    if (settingsResult.data?.monthly_income !== undefined && settingsResult.data.monthly_income !== null) {
-      setIncomeState(Number(settingsResult.data.monthly_income));
-    }
-
     const remoteCurrency = settingsResult.data?.currency as CurrencyCode | undefined;
     if (remoteCurrency) {
       setCurrencyState(remoteCurrency);
@@ -467,9 +542,12 @@ export function useBudget(session: Session | null) {
   return {
     income,
     currency,
-    expenses,
+    expenses: periodExpenses,
     categories,
     categoryStats,
+    selectedPeriod,
+    monthOptions,
+    defaultExpenseDate,
     isHydrating,
     isSyncing,
     error,
@@ -483,6 +561,7 @@ export function useBudget(session: Session | null) {
     addCategory,
     deleteCategory,
     refreshBudget,
+    selectMonth: setSelectedMonthKey,
     clearError: () => setError(null),
   };
 }

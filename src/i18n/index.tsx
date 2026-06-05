@@ -18,7 +18,7 @@ const translations = {
     adviceSavingsExcellent:
       'Bu ay %{percent} tasarruf alanına sahipsin. Kalan bütçeni yatırım veya birikim için ayırabilirsin.',
     adviceSavingsHigh:
-      'Bu ay %{percent} tasarruf alanın var. Kalan bütçeyi yatırım veya birikim gibi şeyler için kullanabilirsin.',
+      'Bu ay %{percent} tasarruf alanın var. Kalan bütçeyi yatırım veya birikim için kullanabilirsin.',
     adviceSavingsMedium: 'Bu ay %{percent} tasarruf yapabildin. Bir sonraki aylarda daha fazla tasarruf yapabilirsin.',
     adviceSavingsLow: 'Bu ay %{percent} tasarruf alanın var. Bunu arttırmanı öneririm.',
     all: 'Hepsi',

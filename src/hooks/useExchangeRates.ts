@@ -12,6 +12,7 @@ export function useExchangeRates() {
 
   const refreshRates = useCallback(async () => {
     setIsLoading(true);
+    setError(null);
     const cachedRates = await getCachedExchangeRates();
     if (cachedRates) {
       setRates(cachedRates);

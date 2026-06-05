@@ -13,6 +13,7 @@ type Props = {
   exchangeRates: ExchangeRates;
   defaultSpentOn: string;
   resetSignal: number;
+  errors?: string[];
   onAddExpense: (expense: {
     title: string;
     amount: number;
@@ -97,6 +98,7 @@ export function ExpenseForm({
   exchangeRates,
   defaultSpentOn,
   resetSignal,
+  errors = [],
   onAddExpense,
   onAddCategory,
   onDeleteCategory,
@@ -114,6 +116,7 @@ export function ExpenseForm({
   const [pickerMonthKey, setPickerMonthKey] = useState(monthKeyFromDateKey(defaultSpentOn));
   const [error, setError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const errorMessages = useMemo(() => Array.from(new Set([error, ...errors].filter(Boolean))), [error, errors]);
   const parsedPreviewAmount = Number(amount.replace(',', '.'));
   const canShowPreview = Number.isFinite(parsedPreviewAmount) && parsedPreviewAmount > 0;
   const calendarDays = useMemo(() => getCalendarDays(pickerMonthKey), [pickerMonthKey]);
@@ -212,7 +215,15 @@ export function ExpenseForm({
         </View>
       </View>
 
-      {error ? <Text style={styles.errorBox}>{error}</Text> : null}
+      {errorMessages.length > 0 ? (
+        <View style={styles.errorStack}>
+          {errorMessages.map((message) => (
+            <Text key={message} style={styles.errorBox}>
+              {message}
+            </Text>
+          ))}
+        </View>
+      ) : null}
 
       <View style={styles.field}>
         <Text style={styles.label}>{t('expenseDescription')}</Text>
@@ -471,8 +482,11 @@ const styles = StyleSheet.create({
     color: '#fb7185',
     fontSize: 12,
     fontWeight: '800',
-    marginBottom: 14,
     padding: 12,
+  },
+  errorStack: {
+    gap: 8,
+    marginBottom: 14,
   },
   field: {
     gap: 7,

@@ -26,13 +26,18 @@ export function AuthScreen() {
   const [message, setMessage] = useState('');
 
   const submit = async () => {
-    if (mode === 'sign-up' && fullName.trim().length < 2) {
-      setMessage(t('authFullNameError'));
+    if (!email.trim()) {
+      setMessage(t('authEmailRequired'));
       return;
     }
 
-    if (!email.trim() || password.length < 6) {
-      setMessage(t('authEmailPasswordError'));
+    if (password.length < 6) {
+      setMessage(t('authPasswordMin'));
+      return;
+    }
+
+    if (mode === 'sign-up' && fullName.trim().length < 2) {
+      setMessage(t('authFullNameError'));
       return;
     }
 

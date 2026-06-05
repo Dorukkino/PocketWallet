@@ -12,12 +12,13 @@ type Props = {
   categories: ExpenseCategory[];
   currency: CurrencyCode;
   exchangeRates: ExchangeRates;
+  errors?: string[];
   onDeleteExpense: (id: string) => Promise<void>;
 };
 
 type FilterName = CategoryName | 'Hepsi';
 
-export function TransactionList({ expenses, categories, currency, exchangeRates, onDeleteExpense }: Props) {
+export function TransactionList({ expenses, categories, currency, exchangeRates, errors = [], onDeleteExpense }: Props) {
   const { categoryLabel, expenseTitleLabel, locale, t } = useI18n();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<FilterName>('Hepsi');
@@ -47,6 +48,16 @@ export function TransactionList({ expenses, categories, currency, exchangeRates,
           <Text style={styles.subtitle}>{t('transactionCount', { count: expenses.length })}</Text>
         </View>
       </View>
+
+      {errors.length > 0 ? (
+        <View style={styles.errorStack}>
+          {errors.map((message) => (
+            <Text key={message} style={styles.errorBox}>
+              {message}
+            </Text>
+          ))}
+        </View>
+      ) : null}
 
       <View style={styles.searchBox}>
         <Search color="#64748b" size={16} />
@@ -163,6 +174,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     marginTop: 3,
+  },
+  errorBox: {
+    backgroundColor: 'rgba(244, 63, 94, 0.12)',
+    borderColor: 'rgba(251, 113, 133, 0.24)',
+    borderRadius: 14,
+    borderWidth: 1,
+    color: '#fb7185',
+    fontSize: 12,
+    fontWeight: '800',
+    padding: 12,
+  },
+  errorStack: {
+    gap: 8,
+    marginBottom: 14,
   },
   searchBox: {
     alignItems: 'center',

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ArrowDownRight, ArrowUpRight, Check, Pencil, WalletCards } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -14,6 +14,7 @@ type Props = {
   spendRatio: number;
   currency: CurrencyCode;
   exchangeRates: ExchangeRates;
+  resetSignal: number;
   onIncomeChange: (income: number) => void;
 };
 
@@ -24,6 +25,7 @@ export function BalanceHeader({
   spendRatio,
   currency,
   exchangeRates,
+  resetSignal,
   onIncomeChange,
 }: Props) {
   const { locale, t } = useI18n();
@@ -63,6 +65,10 @@ export function BalanceHeader({
       : balanceState === 'negative'
         ? (['rgba(239,68,68,0.28)', 'rgba(127,29,29,0.1)'] as const)
         : (['rgba(59,130,246,0.24)', 'rgba(14,165,233,0.08)'] as const);
+
+  useEffect(() => {
+    setError('');
+  }, [resetSignal]);
 
   const saveIncome = () => {
     const parsed = Number(incomeInput.replace(',', '.'));

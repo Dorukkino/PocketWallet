@@ -14,6 +14,9 @@ type ExpenseInsert = {
   spentOn: string;
 };
 
+type ErrorPlacement = 'general' | 'expenseForm' | 'transactions';
+type BudgetErrors = Record<ErrorPlacement, string[]>;
+
 const padDatePart = (value: number) => String(value).padStart(2, '0');
 
 const dateKeyFromDate = (date: Date) =>
@@ -117,6 +120,12 @@ const colorToSoftColor = (color: string) => {
 
 const normalizeCategoryName = (name: string) => name.trim().replace(/\s+/g, ' ');
 
+const createEmptyErrors = (): BudgetErrors => ({
+  general: [],
+  expenseForm: [],
+  transactions: [],
+});
+
 export function useBudget(session: Session | null) {
   const { locale, t } = useI18n();
   const userId = session?.user.id;
@@ -129,7 +138,7 @@ export function useBudget(session: Session | null) {
   const [selectedMonthKey, setSelectedMonthKey] = useState(monthKeyFromDateKey(today()));
   const [isHydrating, setIsHydrating] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<BudgetErrors>(createEmptyErrors);
 
   const income = monthlyIncomes[selectedMonthKey] ?? 0;
 
@@ -146,12 +155,39 @@ export function useBudget(session: Session | null) {
     [budgetStartDate, categories, currency, expenses, income, monthlyIncomes],
   );
 
+  const addError = useCallback((placement: ErrorPlacement, message: string) => {
+    setErrors((current) =>
+      current[placement].includes(message)
+        ? current
+        : {
+            ...current,
+            [placement]: [...current[placement], message],
+          },
+    );
+  }, []);
+
+  const clearError = useCallback((placement?: ErrorPlacement) => {
+    if (!placement) {
+      setErrors(createEmptyErrors());
+      return;
+    }
+
+    setErrors((current) =>
+      current[placement].length === 0
+        ? current
+        : {
+            ...current,
+            [placement]: [],
+          },
+    );
+  }, []);
+
   useEffect(() => {
     let mounted = true;
 
     async function hydrate() {
       setIsHydrating(true);
-      setError(null);
+      clearError();
 
       const cached = await readBudgetSnapshot(userId);
       if (mounted && cached) {
@@ -197,7 +233,7 @@ export function useBudget(session: Session | null) {
       }
 
       if (settingsResult.error || expensesResult.error || categoriesResult.error) {
-        setError(t('remoteFetchFailed'));
+        addError('general', t('remoteFetchFailed'));
       } else {
         const remoteCurrency = settingsResult.data?.currency as CurrencyCode | undefined;
         const remoteExpenses = expensesResult.data?.map(fromRemoteExpense) ?? [];
@@ -242,15 +278,15 @@ export function useBudget(session: Session | null) {
     return () => {
       mounted = false;
     };
-  }, [fallbackBudgetStartDate, userId]);
+  }, [addError, clearError, fallbackBudgetStartDate, t, userId]);
 
   useEffect(() => {
     if (!isHydrating) {
       writeBudgetSnapshot(userId, snapshot).catch(() => {
-        setError(t('localSaveFailed'));
+        addError('general', t('localSaveFailed'));
       });
     }
-  }, [isHydrating, snapshot, t, userId]);
+  }, [addError, isHydrating, snapshot, t, userId]);
 
   const selectedPeriod = useMemo(
     () => createBudgetPeriod(selectedMonthKey, budgetStartDate, locale),
@@ -321,6 +357,7 @@ export function useBudget(session: Session | null) {
 
   const updateCurrency = useCallback(
     async (nextCurrency: CurrencyCode) => {
+      clearError('general');
       setCurrencyState(nextCurrency);
 
       if (!userId) {
@@ -334,14 +371,15 @@ export function useBudget(session: Session | null) {
       });
 
       if (updateError) {
-        setError(t('currencySavedFailed'));
+        addError('general', t('currencySavedFailed'));
       }
     },
-    [t, userId],
+    [addError, clearError, t, userId],
   );
 
   const addExpense = useCallback(
     async (input: ExpenseInsert) => {
+      clearError('expenseForm');
       const newExpense: Expense = {
         id: makeUuid(),
         title: input.title.trim(),
@@ -368,21 +406,22 @@ export function useBudget(session: Session | null) {
       });
 
       if (insertError) {
-        setError(t('expenseSaveFailed'));
+        addError('expenseForm', t('expenseSaveFailed'));
         setExpenses((current) => current.map((item) => (item.id === newExpense.id ? { ...item, pending: true } : item)));
         return;
       }
 
       setExpenses((current) => current.map((item) => (item.id === newExpense.id ? { ...item, pending: false } : item)));
     },
-    [userId],
+    [addError, clearError, t, userId],
   );
 
   const addCategory = useCallback(
     async (name: string, icon = 'briefcase', selectedColor?: string) => {
+      clearError('expenseForm');
       const normalizedName = normalizeCategoryName(name);
       if (normalizedName.length < 2) {
-        setError(t('categoryNameMin'));
+        addError('expenseForm', t('categoryNameMin'));
         return false;
       }
 
@@ -390,7 +429,7 @@ export function useBudget(session: Session | null) {
         (category) => category.name.toLocaleLowerCase(locale) === normalizedName.toLocaleLowerCase(locale),
       );
       if (duplicate) {
-        setError(t('categoryAlreadyExists'));
+        addError('expenseForm', t('categoryAlreadyExists'));
         return false;
       }
 
@@ -422,7 +461,7 @@ export function useBudget(session: Session | null) {
       });
 
       if (insertError) {
-        setError(t('categorySaveFailed'));
+        addError('expenseForm', t('categorySaveFailed'));
         return true;
       }
 
@@ -431,52 +470,32 @@ export function useBudget(session: Session | null) {
       );
       return true;
     },
-    [categories, locale, t, userId],
+    [addError, categories, clearError, locale, t, userId],
   );
 
   const deleteCategory = useCallback(
     async (categoryId: string) => {
+      clearError('expenseForm');
       const category = categories.find((item) => item.id === categoryId);
       if (!category) {
         return false;
       }
 
       if (categories.length <= 1) {
-        setError(t('atLeastOneCategory'));
+        addError('expenseForm', t('atLeastOneCategory'));
         return false;
       }
 
-      const fallbackCategory =
-        categories.find((item) => item.id !== categoryId && item.name === 'Diğer') ??
-        categories.find((item) => item.id !== categoryId);
-      const previousExpenses = expenses;
+      const isCategoryInUse = expenses.some((expense) => expense.category === category.name);
+      if (isCategoryInUse) {
+        addError('expenseForm', t('categoryInUse'));
+        return false;
+      }
 
       setCategories((current) => current.filter((item) => item.id !== categoryId));
-      if (fallbackCategory) {
-        setExpenses((current) =>
-          current.map((expense) =>
-            expense.category === category.name ? { ...expense, category: fallbackCategory.name } : expense,
-          ),
-        );
-      }
 
       if (!userId || category.id.startsWith('default-')) {
         return true;
-      }
-
-      if (fallbackCategory) {
-        const { error: updateExpensesError } = await supabase
-          .from('expenses')
-          .update({ category: fallbackCategory.name })
-          .eq('user_id', userId)
-          .eq('category', category.name);
-
-        if (updateExpensesError) {
-          setError(t('categoryDeleteFailed'));
-          setCategories((current) => [...current, category]);
-          setExpenses(previousExpenses);
-          return false;
-        }
       }
 
       const { error: deleteError } = await supabase
@@ -486,19 +505,19 @@ export function useBudget(session: Session | null) {
         .eq('user_id', userId);
 
       if (deleteError) {
-        setError(t('categoryDeleteFailed'));
+        addError('expenseForm', t('categoryDeleteFailed'));
         setCategories((current) => [...current, category]);
-        setExpenses(previousExpenses);
         return false;
       }
 
       return true;
     },
-    [categories, expenses, t, userId],
+    [addError, categories, clearError, expenses, t, userId],
   );
 
   const deleteExpense = useCallback(
     async (expenseId: string) => {
+      clearError('transactions');
       let removed: Expense | undefined;
       setExpenses((current) => {
         removed = current.find((item) => item.id === expenseId);
@@ -511,11 +530,11 @@ export function useBudget(session: Session | null) {
 
       const { error: deleteError } = await supabase.from('expenses').delete().eq('id', expenseId).eq('user_id', userId);
       if (deleteError && removed) {
-        setError(t('deleteExpenseFailed'));
+        addError('transactions', t('deleteExpenseFailed'));
         setExpenses((current) => [removed as Expense, ...current]);
       }
     },
-    [t, userId],
+    [addError, clearError, t, userId],
   );
 
   const refreshBudget = useCallback(async () => {
@@ -524,7 +543,7 @@ export function useBudget(session: Session | null) {
     }
 
     setIsSyncing(true);
-    setError(null);
+    clearError();
 
     const [settingsResult, expensesResult, categoriesResult] = await Promise.all([
       supabase.from('user_settings').select('monthly_income, currency').eq('user_id', userId).maybeSingle(),
@@ -543,7 +562,7 @@ export function useBudget(session: Session | null) {
     ]);
 
     if (settingsResult.error || expensesResult.error || categoriesResult.error) {
-      setError(t('remoteRefreshFailed'));
+      addError('general', t('remoteRefreshFailed'));
       setIsSyncing(false);
       return;
     }
@@ -561,7 +580,7 @@ export function useBudget(session: Session | null) {
     }
 
     setIsSyncing(false);
-  }, [t, userId]);
+  }, [addError, clearError, t, userId]);
 
   return {
     income,
@@ -574,7 +593,10 @@ export function useBudget(session: Session | null) {
     defaultExpenseDate,
     isHydrating,
     isSyncing,
-    error,
+    error: errors.general[0] ?? null,
+    errors: errors.general,
+    expenseFormErrors: errors.expenseForm,
+    transactionErrors: errors.transactions,
     totalExpense: totals.totalExpense,
     remainingBalance: totals.remainingBalance,
     spendRatio: totals.spendRatio,
@@ -586,6 +608,6 @@ export function useBudget(session: Session | null) {
     deleteCategory,
     refreshBudget,
     selectMonth: setSelectedMonthKey,
-    clearError: () => setError(null),
+    clearError,
   };
 }

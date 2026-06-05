@@ -274,9 +274,13 @@ export function BudgetScreen({ session }: Props) {
           })}
         </View>
 
-        {budget.error ? (
-          <Pressable onPress={budget.clearError} style={styles.errorBox}>
-            <Text style={styles.errorText}>{budget.error}</Text>
+        {budget.errors.length > 0 ? (
+          <Pressable onPress={() => budget.clearError('general')} style={styles.errorBox}>
+            {budget.errors.map((message) => (
+              <Text key={message} style={styles.errorText}>
+                {message}
+              </Text>
+            ))}
           </Pressable>
         ) : null}
 
@@ -287,6 +291,7 @@ export function BudgetScreen({ session }: Props) {
           spendRatio={budget.spendRatio}
           currency={budget.currency}
           exchangeRates={exchange.rates}
+          resetSignal={formResetSignal}
           onIncomeChange={budget.updateIncome}
         />
 
@@ -295,6 +300,7 @@ export function BudgetScreen({ session }: Props) {
           exchangeRates={exchange.rates}
           defaultSpentOn={budget.defaultExpenseDate}
           resetSignal={formResetSignal}
+          errors={budget.expenseFormErrors}
           onAddExpense={budget.addExpense}
           onAddCategory={budget.addCategory}
           onDeleteCategory={budget.deleteCategory}
@@ -312,6 +318,7 @@ export function BudgetScreen({ session }: Props) {
           categories={budget.categories}
           currency={budget.currency}
           exchangeRates={exchange.rates}
+          errors={budget.transactionErrors}
           onDeleteExpense={budget.deleteExpense}
         />
 

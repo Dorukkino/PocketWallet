@@ -244,7 +244,7 @@ export function BudgetScreen({ session }: Props) {
             {budget.income === 0 && budget.totalExpense === 0
               ? 'Bu ay için gelir ve gider henüz girilmedi. Ayı yönetmeye gelirini ekleyerek başlayabilirsin.'
               : budget.remainingBalance >= 0
-                ? `Bu ay ${Math.max(0, Math.round((budget.remainingBalance / Math.max(budget.income, 1)) * 100))}% tasarruf alanın var. Kalan bütçeyi yatırım veya birikim için ayırabilirsin.`
+                ? `Bu ay %${Math.max(0, Math.round((budget.remainingBalance / Math.max(budget.income, 1)) * 100))} tasarruf alanın var. Kalan bütçeyi yatırım veya birikim için ayırabilirsin.`
                 : 'Bu ay harcamalar geliri geçti. Eğlence, giyim veya dış harcama kalemlerini sınırlamak bütçeyi hızlı toparlar.'}
           </Text>
         </View>

@@ -304,7 +304,7 @@ export function useBudget(session: Session | null) {
         total,
         percentage: totals.totalExpense > 0 ? Math.round((total / totals.totalExpense) * 100) : 0,
       };
-    }).filter((item) => item.total > 0);
+    }).filter((item) => item.total > 0).sort((first, second) => second.total - first.total);
   }, [categories, periodExpenses, totals.totalExpense]);
 
   const updateIncome = useCallback(

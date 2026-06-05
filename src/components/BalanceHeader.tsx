@@ -43,7 +43,26 @@ export function BalanceHeader({
     () => formatCurrencyValue(totalExpense, currency, exchangeRates, locale),
     [currency, exchangeRates, locale, totalExpense],
   );
-  const balanceTone = remainingBalance >= 0 ? styles.balancePositive : styles.balanceNegative;
+  const balanceState = remainingBalance > 0 ? 'positive' : remainingBalance < 0 ? 'negative' : 'neutral';
+  const isBalanceNegative = balanceState === 'negative';
+  const balanceTone =
+    balanceState === 'positive'
+      ? styles.balancePositive
+      : balanceState === 'negative'
+        ? styles.balanceNegative
+        : styles.balanceNeutral;
+  const heroCardTone =
+    balanceState === 'negative'
+      ? styles.heroCardNegative
+      : balanceState === 'neutral'
+        ? styles.heroCardNeutral
+        : undefined;
+  const heroGradientColors =
+    balanceState === 'positive'
+      ? (['rgba(16,185,129,0.28)', 'rgba(20,184,166,0.08)'] as const)
+      : balanceState === 'negative'
+        ? (['rgba(239,68,68,0.28)', 'rgba(127,29,29,0.1)'] as const)
+        : (['rgba(59,130,246,0.24)', 'rgba(14,165,233,0.08)'] as const);
 
   const saveIncome = () => {
     const parsed = Number(incomeInput.replace(',', '.'));
@@ -59,7 +78,7 @@ export function BalanceHeader({
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={['rgba(16,185,129,0.28)', 'rgba(20,184,166,0.08)']} style={styles.heroCard}>
+      <LinearGradient colors={heroGradientColors} style={[styles.heroCard, heroCardTone]}>
         <View style={styles.heroTopRow}>
           <View>
             <Text style={styles.eyebrow}>
@@ -78,12 +97,12 @@ export function BalanceHeader({
           </View>
         </View>
         <Text style={styles.heroHint}>
-          {remainingBalance >= 0
-            ? t('rateDate', {
+          {isBalanceNegative
+            ? t('budgetExceeded')
+            : t('rateDate', {
                 date: exchangeRates.sourceDate,
                 stale: exchangeRates.isStale ? t('rateStaleParen') : '',
-              })
-            : t('budgetExceeded')}
+              })}
         </Text>
       </LinearGradient>
 
@@ -152,6 +171,12 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     padding: 22,
   },
+  heroCardNegative: {
+    borderColor: 'rgba(248, 113, 113, 0.28)',
+  },
+  heroCardNeutral: {
+    borderColor: 'rgba(96, 165, 250, 0.26)',
+  },
   heroTopRow: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -170,10 +195,13 @@ const styles = StyleSheet.create({
     marginTop: 7,
   },
   balancePositive: {
-    color: '#5eead4',
+    color: '#34d399',
   },
   balanceNegative: {
     color: '#fb7185',
+  },
+  balanceNeutral: {
+    color: '#60a5fa',
   },
   tryHint: {
     color: '#94a3b8',

@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import type { Session } from '@supabase/supabase-js';
 
+import { useAdmin } from './src/hooks/useAdmin';
+import { AdminScreen } from './src/screens/AdminScreen';
 import { AuthScreen } from './src/screens/AuthScreen';
 import { BudgetScreen } from './src/screens/BudgetScreen';
 import { supabase } from './src/lib/supabase';
@@ -11,6 +13,7 @@ import { LanguageProvider } from './src/i18n';
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [isBooting, setIsBooting] = useState(true);
+  const admin = useAdmin(session);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -29,7 +32,7 @@ export default function App() {
     };
   }, []);
 
-  if (isBooting) {
+  if (isBooting || (session && (admin.isLoading || admin.role === null))) {
     return (
       <LanguageProvider>
         <View style={styles.bootScreen}>
@@ -42,7 +45,22 @@ export default function App() {
 
   return (
     <LanguageProvider>
-      {session ? <BudgetScreen session={session} /> : <AuthScreen />}
+      {session ? (
+        admin.isAdmin ? (
+          <AdminScreen
+            session={session}
+            stats={admin.stats}
+            users={admin.users}
+            isRefreshing={admin.isRefreshing}
+            errorKey={admin.errorKey}
+            onRefresh={admin.refreshAdmin}
+          />
+        ) : (
+          <BudgetScreen session={session} />
+        )
+      ) : (
+        <AuthScreen />
+      )}
       <StatusBar style="light" />
     </LanguageProvider>
   );

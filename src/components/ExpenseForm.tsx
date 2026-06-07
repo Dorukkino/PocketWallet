@@ -116,7 +116,8 @@ export function ExpenseForm({
   const [pickerMonthKey, setPickerMonthKey] = useState(monthKeyFromDateKey(defaultSpentOn));
   const [error, setError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-  const errorMessages = useMemo(() => Array.from(new Set([error, ...errors].filter(Boolean))), [error, errors]);
+  const formErrorMessages = useMemo(() => Array.from(new Set([error].filter(Boolean))), [error]);
+  const categoryErrorMessages = useMemo(() => Array.from(new Set(errors.filter(Boolean))), [errors]);
   const parsedPreviewAmount = Number(amount.replace(',', '.'));
   const canShowPreview = Number.isFinite(parsedPreviewAmount) && parsedPreviewAmount > 0;
   const calendarDays = useMemo(() => getCalendarDays(pickerMonthKey), [pickerMonthKey]);
@@ -215,9 +216,9 @@ export function ExpenseForm({
         </View>
       </View>
 
-      {errorMessages.length > 0 ? (
+      {formErrorMessages.length > 0 ? (
         <View style={styles.errorStack}>
-          {errorMessages.map((message) => (
+          {formErrorMessages.map((message) => (
             <Text key={message} style={styles.errorBox}>
               {message}
             </Text>
@@ -327,6 +328,16 @@ export function ExpenseForm({
                 <X color="#94a3b8" size={18} />
               </Pressable>
             </View>
+
+            {categoryErrorMessages.length > 0 ? (
+              <View style={styles.modalErrorStack}>
+                {categoryErrorMessages.map((message) => (
+                  <Text key={message} style={styles.errorBox}>
+                    {message}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
 
             <TextInput
               value={newCategoryName}
@@ -485,6 +496,10 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   errorStack: {
+    gap: 8,
+    marginBottom: 14,
+  },
+  modalErrorStack: {
     gap: 8,
     marginBottom: 14,
   },

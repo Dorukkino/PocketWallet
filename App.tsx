@@ -7,6 +7,7 @@ import { useAdmin } from './src/hooks/useAdmin';
 import { AdminScreen } from './src/screens/AdminScreen';
 import { AuthScreen } from './src/screens/AuthScreen';
 import { BudgetScreen } from './src/screens/BudgetScreen';
+import { initializeAds } from './src/lib/ads';
 import { supabase } from './src/lib/supabase';
 import { LanguageProvider } from './src/i18n';
 
@@ -14,6 +15,10 @@ export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [isBooting, setIsBooting] = useState(true);
   const admin = useAdmin(session);
+
+  useEffect(() => {
+    void initializeAds();
+  }, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {

@@ -16,8 +16,10 @@ import {
 } from 'react-native';
 import type { Session } from '@supabase/supabase-js';
 import { LinearGradient } from 'expo-linear-gradient';
-import { CalendarDays, ChevronLeft, ChevronRight, LogOut, WalletCards, X } from 'lucide-react-native';
+import { CalendarDays, ChevronLeft, ChevronRight, LogOut, X } from 'lucide-react-native';
 
+import { AdBanner } from '../components/AdBanner';
+import { AppLogo } from '../components/AppLogo';
 import { BalanceHeader } from '../components/BalanceHeader';
 import { DonutChart } from '../components/DonutChart';
 import { ExpenseForm } from '../components/ExpenseForm';
@@ -184,9 +186,7 @@ export function BudgetScreen({ session }: Props) {
       >
         <View style={styles.nav}>
           <View style={styles.brandRow}>
-            <View style={styles.brandIcon}>
-              <WalletCards color="#022c22" size={25} />
-            </View>
+            <AppLogo size={46} style={styles.brandIcon} />
             <View>
               <Text style={styles.brand}>PocketWallet</Text>
               <Text style={styles.brandSub}>{t('dashboardSubtitle')}</Text>
@@ -294,6 +294,8 @@ export function BudgetScreen({ session }: Props) {
           resetSignal={formResetSignal}
           onIncomeChange={budget.updateIncome}
         />
+
+        <AdBanner />
 
         <ExpenseForm
           categories={budget.categories}
@@ -442,12 +444,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   brandIcon: {
-    alignItems: 'center',
-    backgroundColor: '#34d399',
-    borderRadius: 17,
-    height: 46,
-    justifyContent: 'center',
-    width: 46,
+    borderColor: 'rgba(94, 234, 212, 0.2)',
+    borderWidth: 1,
   },
   brand: {
     color: '#f8fafc',

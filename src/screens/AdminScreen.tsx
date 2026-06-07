@@ -1,8 +1,9 @@
 import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { Session } from '@supabase/supabase-js';
 import { LinearGradient } from 'expo-linear-gradient';
-import { LogOut, RefreshCw, ReceiptText, Settings, ShieldCheck, Tags, UsersRound, WalletCards } from 'lucide-react-native';
+import { LogOut, ReceiptText, RefreshCw, Settings, Tags, UsersRound } from 'lucide-react-native';
 
+import { AppLogo } from '../components/AppLogo';
 import { LanguageToggle } from '../components/LanguageToggle';
 import type { AdminErrorKey, AdminStats, AdminUserSummary } from '../hooks/useAdmin';
 import { useI18n } from '../i18n';
@@ -96,9 +97,7 @@ export function AdminScreen({ session, stats, users, isRefreshing, errorKey, onR
       >
         <View style={styles.nav}>
           <View style={styles.brandRow}>
-            <View style={styles.brandIcon}>
-              <ShieldCheck color="#022c22" size={25} />
-            </View>
+            <AppLogo size={45} style={styles.brandIcon} />
             <View style={styles.brandCopy}>
               <Text style={styles.brand}>{t('adminPanelTitle')}</Text>
               <Text style={styles.brandSub}>{t('adminPanelSubtitle')}</Text>
@@ -116,9 +115,7 @@ export function AdminScreen({ session, stats, users, isRefreshing, errorKey, onR
         </View>
 
         <View style={styles.heroCard}>
-          <View style={styles.heroIcon}>
-            <WalletCards color="#5eead4" size={22} />
-          </View>
+          <AppLogo size={52} style={styles.heroIcon} />
           <View style={styles.heroCopy}>
             <Text style={styles.heroTitle}>{t('adminWelcomeTitle')}</Text>
             <Text style={styles.heroText}>{t('adminWelcomeText', { email: session.user.email ?? '-' })}</Text>
@@ -212,12 +209,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   brandIcon: {
-    alignItems: 'center',
-    backgroundColor: '#34d399',
-    borderRadius: 18,
-    height: 45,
-    justifyContent: 'center',
-    width: 45,
+    borderColor: 'rgba(94, 234, 212, 0.2)',
+    borderWidth: 1,
   },
   brandCopy: {
     flex: 1,
@@ -261,12 +254,8 @@ const styles = StyleSheet.create({
     padding: 18,
   },
   heroIcon: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(20, 184, 166, 0.14)',
-    borderRadius: 18,
-    height: 48,
-    justifyContent: 'center',
-    width: 48,
+    borderColor: 'rgba(94, 234, 212, 0.22)',
+    borderWidth: 1,
   },
   heroCopy: {
     flex: 1,

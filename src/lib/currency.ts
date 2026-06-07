@@ -5,6 +5,7 @@ import type { CurrencyCode, ExchangeRates } from '../types/budget';
 
 const CACHE_KEY = 'pocketwallet_exchange_rates_v1';
 const RATE_API_URL = 'https://api.frankfurter.app/latest?from=TRY&to=USD,EUR,GBP';
+const MAX_EXCHANGE_RATE_AGE_MS = 2 * 24 * 60 * 60 * 1000;
 
 const fallbackRates: ExchangeRates = {
   base: 'TRY',
@@ -26,11 +27,23 @@ export async function getCachedExchangeRates() {
   }
 
   try {
-    return JSON.parse(raw) as ExchangeRates;
+    return withExchangeRatesFreshness(JSON.parse(raw) as ExchangeRates);
   } catch {
     await AsyncStorage.removeItem(CACHE_KEY);
     return null;
   }
+}
+
+export function isExchangeRatesExpired(rates: ExchangeRates, now = Date.now()) {
+  const fetchedAt = new Date(rates.fetchedAt).getTime();
+  return !Number.isFinite(fetchedAt) || now - fetchedAt > MAX_EXCHANGE_RATE_AGE_MS;
+}
+
+export function withExchangeRatesFreshness(rates: ExchangeRates) {
+  return {
+    ...rates,
+    isStale: rates.isStale || isExchangeRatesExpired(rates),
+  };
 }
 
 export async function fetchExchangeRates(): Promise<ExchangeRates> {

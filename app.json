@@ -7,6 +7,11 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "scheme": "pocketwallet",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#020617"
+    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.dorukkino.pocketwallet"
@@ -23,6 +28,16 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-3940256099942544~3347511713",
+          "iosAppId": "ca-app-pub-9076740570868318~6564831937",
+          "userTrackingUsageDescription": "Bu tanımlayıcı size kişiselleştirilmiş reklamlar sunmak için kullanılacaktır."
+        }
+      ]
+    ]
   }
 }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { ArrowDownRight, ArrowUpRight, Check, Pencil, WalletCards } from 'lucide-react-native';
+import { ArrowDownRight, ArrowUpRight, Check, Pencil } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { useI18n } from '../i18n';
@@ -97,9 +97,6 @@ export function BalanceHeader({
                 {remainingBalance.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </Text>
             ) : null}
-          </View>
-          <View style={styles.heroIcon}>
-            <WalletCards color="#5eead4" size={24} />
           </View>
         </View>
         <Text style={styles.heroHint}>
@@ -214,16 +211,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     marginTop: 5,
-  },
-  heroIcon: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(15, 23, 42, 0.72)',
-    borderColor: 'rgba(94, 234, 212, 0.22)',
-    borderRadius: 18,
-    borderWidth: 1,
-    height: 48,
-    justifyContent: 'center',
-    width: 48,
   },
   heroHint: {
     color: '#cbd5e1',

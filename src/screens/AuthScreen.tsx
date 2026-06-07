@@ -10,8 +10,9 @@ import {
   View,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { LockKeyhole, Mail, UserRound, WalletCards } from 'lucide-react-native';
+import { LockKeyhole, Mail, UserRound } from 'lucide-react-native';
 
+import { AppLogo } from '../components/AppLogo';
 import { LanguageToggle } from '../components/LanguageToggle';
 import { useI18n } from '../i18n';
 import { supabase } from '../lib/supabase';
@@ -77,9 +78,7 @@ export function AuthScreen() {
 
       <View style={styles.card}>
         <LanguageToggle style={styles.languageToggle} />
-        <View style={styles.logo}>
-          <WalletCards color="#022c22" size={30} />
-        </View>
+        <AppLogo size={68} style={styles.logo} />
         <Text style={styles.title}>PocketWallet</Text>
         <Text style={styles.subtitle}>{t('authSubtitle')}</Text>
 
@@ -187,13 +186,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   logo: {
-    alignItems: 'center',
-    backgroundColor: '#34d399',
-    borderRadius: 22,
-    height: 58,
-    justifyContent: 'center',
     marginBottom: 18,
-    width: 58,
   },
   title: {
     color: '#f8fafc',

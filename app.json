@@ -14,7 +14,8 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.dorukkino.pocketwallet"
+      "bundleIdentifier": "com.dorukkino.pocketwallet",
+      "buildNumber": "1"
     },
     "android": {
       "package": "com.dorukkino.pocketwallet",

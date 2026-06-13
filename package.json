@@ -24,6 +24,9 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
+    "prebuild:ios": "expo prebuild --platform ios",
+    "build:ios": "eas build --platform ios --profile production",
+    "submit:ios": "eas submit --platform ios --latest",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit"
   },

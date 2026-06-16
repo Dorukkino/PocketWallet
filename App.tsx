@@ -17,8 +17,10 @@ export default function App() {
   const admin = useAdmin(session);
 
   useEffect(() => {
-    void initializeAds();
-  }, []);
+    if (!isBooting) {
+      void initializeAds();
+    }
+  }, [isBooting]);
 
   useEffect(() => {
     supabase.auth

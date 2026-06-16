@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import type { Session } from '@supabase/supabase-js';
 import { LinearGradient } from 'expo-linear-gradient';
-import { CalendarDays, ChevronLeft, ChevronRight, LogOut, X } from 'lucide-react-native';
+import { CalendarDays, ChevronLeft, ChevronRight, LogOut, Trash2, X } from 'lucide-react-native';
 
 import { AdBanner } from '../components/AdBanner';
 import { AppLogo } from '../components/AppLogo';
@@ -30,6 +30,7 @@ import { useExchangeRates } from '../hooks/useExchangeRates';
 import { useBudget } from '../hooks/useBudget';
 import { TranslationKey, useI18n } from '../i18n';
 import { formatCurrencyValue } from '../lib/currency';
+import { removeBudgetSnapshot } from '../lib/storage';
 import { supabase } from '../lib/supabase';
 import type { BudgetPeriod } from '../types/budget';
 
@@ -83,6 +84,7 @@ export function BudgetScreen({ session }: Props) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
   const [isMonthPickerVisible, setIsMonthPickerVisible] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [formResetSignal, setFormResetSignal] = useState(0);
   const selectedMonthIndex = Math.max(
     0,
@@ -120,6 +122,37 @@ export function BudgetScreen({ session }: Props) {
         style: 'destructive',
         onPress: () => {
           supabase.auth.signOut();
+        },
+      },
+    ]);
+  };
+
+  const deleteAccount = () => {
+    if (isDeletingAccount) {
+      return;
+    }
+
+    Alert.alert(t('deleteAccount'), t('deleteAccountConfirm'), [
+      { text: t('deleteAccountCancel'), style: 'cancel' },
+      {
+        text: t('deleteAccount'),
+        style: 'destructive',
+        onPress: async () => {
+          setIsDeletingAccount(true);
+
+          const { error } = await supabase.functions.invoke('delete-account', {
+            body: {},
+          });
+
+          if (error) {
+            setIsDeletingAccount(false);
+            Alert.alert(t('deleteAccountFailedTitle'), t('deleteAccountFailed'));
+            return;
+          }
+
+          await removeBudgetSnapshot(session.user.id);
+          await supabase.auth.signOut({ scope: 'local' });
+          setIsDeletingAccount(false);
         },
       },
     ]);
@@ -333,6 +366,29 @@ export function BudgetScreen({ session }: Props) {
                 ? t(savingsAdviceKey, { percent: savingsPercent })
                 : t('adviceNegative')}
           </Text>
+        </View>
+
+        <View style={styles.deleteAccountCard}>
+          <View style={styles.deleteAccountHeader}>
+            <View style={styles.deleteAccountIcon}>
+              <Trash2 color="#fca5a5" size={20} />
+            </View>
+            <View style={styles.deleteAccountCopy}>
+              <Text style={styles.deleteAccountTitle}>{t('deleteAccount')}</Text>
+              <Text style={styles.deleteAccountText}>{t('deleteAccountDescription')}</Text>
+            </View>
+          </View>
+          <Pressable
+            disabled={isDeletingAccount}
+            onPress={deleteAccount}
+            style={[styles.deleteAccountButton, isDeletingAccount && styles.deleteAccountButtonDisabled]}
+          >
+            {isDeletingAccount ? (
+              <ActivityIndicator color="#fee2e2" />
+            ) : (
+              <Text style={styles.deleteAccountButtonText}>{t('deleteAccount')}</Text>
+            )}
+          </Pressable>
         </View>
       </ScrollView>
 
@@ -656,6 +712,59 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     lineHeight: 18,
     marginTop: 7,
+  },
+  deleteAccountCard: {
+    backgroundColor: 'rgba(127, 29, 29, 0.18)',
+    borderColor: 'rgba(248, 113, 113, 0.28)',
+    borderRadius: 22,
+    borderWidth: 1,
+    gap: 14,
+    padding: 16,
+  },
+  deleteAccountHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 12,
+  },
+  deleteAccountIcon: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(248, 113, 113, 0.14)',
+    borderColor: 'rgba(252, 165, 165, 0.2)',
+    borderRadius: 16,
+    borderWidth: 1,
+    height: 42,
+    justifyContent: 'center',
+    width: 42,
+  },
+  deleteAccountCopy: {
+    flex: 1,
+  },
+  deleteAccountTitle: {
+    color: '#fee2e2',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  deleteAccountText: {
+    color: '#fecaca',
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 18,
+    marginTop: 4,
+  },
+  deleteAccountButton: {
+    alignItems: 'center',
+    backgroundColor: '#dc2626',
+    borderRadius: 16,
+    height: 48,
+    justifyContent: 'center',
+  },
+  deleteAccountButtonDisabled: {
+    opacity: 0.7,
+  },
+  deleteAccountButtonText: {
+    color: '#fff1f2',
+    fontSize: 14,
+    fontWeight: '900',
   },
   monthModalBackdrop: {
     backgroundColor: 'rgba(2, 6, 23, 0.78)',

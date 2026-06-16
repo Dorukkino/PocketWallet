@@ -23,3 +23,7 @@ export async function readBudgetSnapshot(userId?: string): Promise<BudgetSnapsho
 export async function writeBudgetSnapshot(userId: string | undefined, snapshot: BudgetSnapshot) {
   await AsyncStorage.setItem(keyForUser(userId), JSON.stringify(snapshot));
 }
+
+export async function removeBudgetSnapshot(userId?: string) {
+  await AsyncStorage.removeItem(keyForUser(userId));
+}

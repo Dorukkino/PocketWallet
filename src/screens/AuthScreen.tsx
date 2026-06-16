@@ -45,28 +45,32 @@ export function AuthScreen() {
     setIsLoading(true);
     setMessage('');
 
-    const result =
-      mode === 'sign-in'
-        ? await supabase.auth.signInWithPassword({ email: email.trim(), password })
-        : await supabase.auth.signUp({
-            email: email.trim(),
-            password,
-            options: {
-              data: {
-                full_name: fullName.trim(),
+    try {
+      const result =
+        mode === 'sign-in'
+          ? await supabase.auth.signInWithPassword({ email: email.trim(), password })
+          : await supabase.auth.signUp({
+              email: email.trim(),
+              password,
+              options: {
+                data: {
+                  full_name: fullName.trim(),
+                },
               },
-            },
-          });
+            });
 
-    setIsLoading(false);
+      if (result.error) {
+        setMessage(result.error.message || t('authGenericError'));
+        return;
+      }
 
-    if (result.error) {
-      setMessage(result.error.message);
-      return;
-    }
-
-    if (mode === 'sign-up') {
-      setMessage(t('authCreated'));
+      if (mode === 'sign-up') {
+        setMessage(t('authCreated'));
+      }
+    } catch {
+      setMessage(t('authGenericError'));
+    } finally {
+      setIsLoading(false);
     }
   };
 

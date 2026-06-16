@@ -65,13 +65,23 @@ export function useAdmin(session: Session | null) {
       }
       setErrorKey(null);
 
-      const { data: profile, error: profileError } = await supabase
-        .from('users')
-        .select('role')
-        .eq('id', userId)
-        .maybeSingle();
+      let profileRole: string | null | undefined = null;
+      let roleLoadFailed = false;
 
-      if (profileError) {
+      try {
+        const { data: profile, error: profileError } = await supabase
+          .from('users')
+          .select('role')
+          .eq('id', userId)
+          .maybeSingle();
+
+        profileRole = profile?.role;
+        roleLoadFailed = Boolean(profileError);
+      } catch {
+        roleLoadFailed = true;
+      }
+
+      if (roleLoadFailed) {
         setRole('user');
         setStats(emptyStats);
         setUsers([]);
@@ -81,7 +91,7 @@ export function useAdmin(session: Session | null) {
         return;
       }
 
-      const nextRole = normalizeRole(profile?.role);
+      const nextRole = normalizeRole(profileRole);
       setRole(nextRole);
 
       if (nextRole !== 'admin') {
@@ -100,6 +110,11 @@ export function useAdmin(session: Session | null) {
         countRows('expenses'),
         countRows('expense_categories'),
         countRows('user_settings'),
+      ]).catch(() => [
+        { data: null, count: 0, error: new Error('Admin users request failed.') },
+        { count: 0, error: new Error('Expense count request failed.') },
+        { count: 0, error: new Error('Category count request failed.') },
+        { count: 0, error: new Error('Settings count request failed.') },
       ]);
 
       if (usersResult.error || expensesResult.error || categoriesResult.error || settingsResult.error) {

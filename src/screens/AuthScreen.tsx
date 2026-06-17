@@ -15,7 +15,10 @@ import { LockKeyhole, Mail, UserRound } from 'lucide-react-native';
 import { AppLogo } from '../components/AppLogo';
 import { LanguageToggle } from '../components/LanguageToggle';
 import { useI18n } from '../i18n';
-import { supabase } from '../lib/supabase';
+import { withTimeout } from '../lib/async';
+import { isSupabaseConfigured, supabase } from '../lib/supabase';
+
+const AUTH_REQUEST_TIMEOUT_MS = 10000;
 
 export function AuthScreen() {
   const { t } = useI18n();
@@ -25,8 +28,14 @@ export function AuthScreen() {
   const [mode, setMode] = useState<'sign-in' | 'sign-up'>('sign-in');
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const configurationMessage = isSupabaseConfigured ? '' : t('authServiceUnavailable');
 
   const submit = async () => {
+    if (!isSupabaseConfigured) {
+      setMessage(t('authServiceUnavailable'));
+      return;
+    }
+
     if (!email.trim()) {
       setMessage(t('authEmailRequired'));
       return;
@@ -46,10 +55,10 @@ export function AuthScreen() {
     setMessage('');
 
     try {
-      const result =
+      const result = await withTimeout(
         mode === 'sign-in'
-          ? await supabase.auth.signInWithPassword({ email: email.trim(), password })
-          : await supabase.auth.signUp({
+          ? supabase.auth.signInWithPassword({ email: email.trim(), password })
+          : supabase.auth.signUp({
               email: email.trim(),
               password,
               options: {
@@ -57,7 +66,10 @@ export function AuthScreen() {
                   full_name: fullName.trim(),
                 },
               },
-            });
+            }),
+        AUTH_REQUEST_TIMEOUT_MS,
+        'Authentication request timed out.',
+      );
 
       if (result.error) {
         setMessage(result.error.message || t('authGenericError'));
@@ -125,9 +137,13 @@ export function AuthScreen() {
           />
         </View>
 
-        {message ? <Text style={styles.message}>{message}</Text> : null}
+        {configurationMessage || message ? <Text style={styles.message}>{configurationMessage || message}</Text> : null}
 
-        <Pressable onPress={submit} disabled={isLoading} style={styles.submit}>
+        <Pressable
+          onPress={submit}
+          disabled={isLoading || !isSupabaseConfigured}
+          style={[styles.submit, !isSupabaseConfigured && styles.submitDisabled]}
+        >
           {isLoading ? (
             <ActivityIndicator color="#022c22" />
           ) : (
@@ -238,6 +254,9 @@ const styles = StyleSheet.create({
     height: 52,
     justifyContent: 'center',
     marginTop: 4,
+  },
+  submitDisabled: {
+    opacity: 0.55,
   },
   submitText: {
     color: '#022c22',

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 
+import { withTimeout } from '../lib/async';
 import { supabase } from '../lib/supabase';
 
 export type AdminRole = 'user' | 'admin';
@@ -28,6 +29,7 @@ const emptyStats: AdminStats = {
   categories: 0,
   settings: 0,
 };
+const ADMIN_REQUEST_TIMEOUT_MS = 7000;
 
 const normalizeRole = (role?: string | null): AdminRole => (role === 'admin' ? 'admin' : 'user');
 
@@ -69,11 +71,11 @@ export function useAdmin(session: Session | null) {
       let roleLoadFailed = false;
 
       try {
-        const { data: profile, error: profileError } = await supabase
-          .from('users')
-          .select('role')
-          .eq('id', userId)
-          .maybeSingle();
+        const { data: profile, error: profileError } = await withTimeout(
+          supabase.from('users').select('role').eq('id', userId).maybeSingle(),
+          ADMIN_REQUEST_TIMEOUT_MS,
+          'Admin role request timed out.',
+        );
 
         profileRole = profile?.role;
         roleLoadFailed = Boolean(profileError);
@@ -102,15 +104,19 @@ export function useAdmin(session: Session | null) {
         return;
       }
 
-      const [usersResult, expensesResult, categoriesResult, settingsResult] = await Promise.all([
-        supabase
-          .from('users')
-          .select('id, full_name, email, role, created_at', { count: 'exact' })
-          .order('created_at', { ascending: false }),
-        countRows('expenses'),
-        countRows('expense_categories'),
-        countRows('user_settings'),
-      ]).catch(() => [
+      const [usersResult, expensesResult, categoriesResult, settingsResult] = await withTimeout(
+        Promise.all([
+          supabase
+            .from('users')
+            .select('id, full_name, email, role, created_at', { count: 'exact' })
+            .order('created_at', { ascending: false }),
+          countRows('expenses'),
+          countRows('expense_categories'),
+          countRows('user_settings'),
+        ]),
+        ADMIN_REQUEST_TIMEOUT_MS,
+        'Admin data request timed out.',
+      ).catch(() => [
         { data: null, count: 0, error: new Error('Admin users request failed.') },
         { count: 0, error: new Error('Expense count request failed.') },
         { count: 0, error: new Error('Category count request failed.') },

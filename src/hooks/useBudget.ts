@@ -3,6 +3,7 @@ import type { Session } from '@supabase/supabase-js';
 
 import { CATEGORIES, CATEGORY_COLORS, DEFAULT_EXPENSES } from '../constants/categories';
 import { useI18n } from '../i18n';
+import { withTimeout } from '../lib/async';
 import { readBudgetSnapshot, writeBudgetSnapshot } from '../lib/storage';
 import { supabase } from '../lib/supabase';
 import type { BudgetPeriod, BudgetSnapshot, CategoryName, CurrencyCode, Expense, ExpenseCategory } from '../types/budget';
@@ -125,6 +126,8 @@ const createEmptyErrors = (): BudgetErrors => ({
   expenseForm: [],
   transactions: [],
 });
+const BUDGET_REQUEST_TIMEOUT_MS = 8000;
+const LOCAL_STORAGE_TIMEOUT_MS = 3000;
 
 export function useBudget(session: Session | null) {
   const { locale, t } = useI18n();
@@ -188,89 +191,116 @@ export function useBudget(session: Session | null) {
     async function hydrate() {
       setIsHydrating(true);
       clearError();
+      let cached: BudgetSnapshot | null = null;
 
-      const cached = await readBudgetSnapshot(userId);
-      if (mounted && cached) {
-        setCurrencyState(cached.currency);
-        setExpenses(cached.expenses);
-        setMonthlyIncomes(cached.monthlyIncomes ?? {});
-        if (cached.budgetStartDate) {
-          setBudgetStartDate(cached.budgetStartDate);
-        } else {
+      try {
+        cached = await withTimeout(readBudgetSnapshot(userId), LOCAL_STORAGE_TIMEOUT_MS, 'Budget cache read timed out.').catch(
+          () => null,
+        );
+
+        if (mounted && cached) {
+          setCurrencyState(cached.currency);
+          setExpenses(cached.expenses);
+          setMonthlyIncomes(cached.monthlyIncomes ?? {});
+          if (cached.budgetStartDate) {
+            setBudgetStartDate(cached.budgetStartDate);
+          } else {
+            setBudgetStartDate(fallbackBudgetStartDate);
+          }
+          if (cached.categories?.length) {
+            setCategories(cached.categories);
+          }
+        } else if (mounted) {
           setBudgetStartDate(fallbackBudgetStartDate);
         }
-        if (cached.categories?.length) {
-          setCategories(cached.categories);
+
+        if (!userId) {
+          return;
         }
-      } else if (mounted) {
-        setBudgetStartDate(fallbackBudgetStartDate);
-      }
 
-      if (!userId) {
-        setIsHydrating(false);
-        return;
-      }
+        setIsSyncing(true);
+        const [settingsResult, expensesResult, categoriesResult] = await withTimeout(
+          Promise.all([
+            supabase.from('user_settings').select('monthly_income, currency').eq('user_id', userId).maybeSingle(),
+            supabase
+              .from('expenses')
+              .select('id, title, amount, category, spent_on, created_at')
+              .eq('user_id', userId)
+              .order('spent_on', { ascending: false })
+              .order('created_at', { ascending: false }),
+            supabase
+              .from('expense_categories')
+              .select('id, name, color, soft_color, icon, is_default')
+              .eq('user_id', userId)
+              .order('is_default', { ascending: false })
+              .order('created_at', { ascending: true }),
+          ]),
+          BUDGET_REQUEST_TIMEOUT_MS,
+          'Budget data request timed out.',
+        );
 
-      setIsSyncing(true);
-      const [settingsResult, expensesResult, categoriesResult] = await Promise.all([
-        supabase.from('user_settings').select('monthly_income, currency').eq('user_id', userId).maybeSingle(),
-        supabase
-          .from('expenses')
-          .select('id, title, amount, category, spent_on, created_at')
-          .eq('user_id', userId)
-          .order('spent_on', { ascending: false })
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('expense_categories')
-          .select('id, name, color, soft_color, icon, is_default')
-          .eq('user_id', userId)
-          .order('is_default', { ascending: false })
-          .order('created_at', { ascending: true }),
-      ]);
-
-      if (!mounted) {
-        return;
-      }
-
-      if (settingsResult.error || expensesResult.error || categoriesResult.error) {
-        addError('general', t('remoteFetchFailed'));
-      } else {
-        const remoteCurrency = settingsResult.data?.currency as CurrencyCode | undefined;
-        const remoteExpenses = expensesResult.data?.map(fromRemoteExpense) ?? [];
-        const remoteCategories = categoriesResult.data?.map(fromRemoteCategory) ?? [];
-
-        if (remoteCurrency) {
-          setCurrencyState(remoteCurrency);
+        if (!mounted) {
+          return;
         }
-        setExpenses(remoteExpenses);
-        if (remoteCategories.length > 0) {
-          setCategories(remoteCategories);
+
+        if (settingsResult.error || expensesResult.error || categoriesResult.error) {
+          addError('general', t('remoteFetchFailed'));
         } else {
-          await Promise.all(
-            CATEGORIES.map((category) =>
-              supabase.from('expense_categories').upsert({
+          const remoteCurrency = settingsResult.data?.currency as CurrencyCode | undefined;
+          const remoteExpenses = expensesResult.data?.map(fromRemoteExpense) ?? [];
+          const remoteCategories = categoriesResult.data?.map(fromRemoteCategory) ?? [];
+
+          if (remoteCurrency) {
+            setCurrencyState(remoteCurrency);
+          }
+          setExpenses(remoteExpenses);
+          if (remoteCategories.length > 0) {
+            setCategories(remoteCategories);
+          } else {
+            await withTimeout(
+              Promise.all(
+                CATEGORIES.map((category) =>
+                  supabase.from('expense_categories').upsert({
+                    user_id: userId,
+                    name: category.name,
+                    color: category.color,
+                    soft_color: category.softColor,
+                    icon: category.icon,
+                    is_default: true,
+                  }),
+                ),
+              ),
+              BUDGET_REQUEST_TIMEOUT_MS,
+              'Default category sync timed out.',
+            );
+          }
+
+          if (!settingsResult.data) {
+            await withTimeout(
+              supabase.from('user_settings').upsert({
                 user_id: userId,
-                name: category.name,
-                color: category.color,
-                soft_color: category.softColor,
-                icon: category.icon,
-                is_default: true,
+                monthly_income: 0,
+                currency: cached?.currency ?? 'TRY',
               }),
-            ),
-          );
+              BUDGET_REQUEST_TIMEOUT_MS,
+              'User settings sync timed out.',
+            );
+          }
+        }
+      } catch (error) {
+        if (__DEV__) {
+          console.warn('Budget hydration failed', error);
         }
 
-        if (!settingsResult.data) {
-          await supabase.from('user_settings').upsert({
-            user_id: userId,
-            monthly_income: 0,
-            currency: cached?.currency ?? 'TRY',
-          });
+        if (mounted) {
+          addError('general', t('remoteFetchFailed'));
+        }
+      } finally {
+        if (mounted) {
+          setIsSyncing(false);
+          setIsHydrating(false);
         }
       }
-
-      setIsSyncing(false);
-      setIsHydrating(false);
     }
 
     hydrate();
@@ -545,41 +575,52 @@ export function useBudget(session: Session | null) {
     setIsSyncing(true);
     clearError();
 
-    const [settingsResult, expensesResult, categoriesResult] = await Promise.all([
-      supabase.from('user_settings').select('monthly_income, currency').eq('user_id', userId).maybeSingle(),
-      supabase
-        .from('expenses')
-        .select('id, title, amount, category, spent_on, created_at')
-        .eq('user_id', userId)
-        .order('spent_on', { ascending: false })
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('expense_categories')
-        .select('id, name, color, soft_color, icon, is_default')
-        .eq('user_id', userId)
-        .order('is_default', { ascending: false })
-        .order('created_at', { ascending: true }),
-    ]);
+    try {
+      const [settingsResult, expensesResult, categoriesResult] = await withTimeout(
+        Promise.all([
+          supabase.from('user_settings').select('monthly_income, currency').eq('user_id', userId).maybeSingle(),
+          supabase
+            .from('expenses')
+            .select('id, title, amount, category, spent_on, created_at')
+            .eq('user_id', userId)
+            .order('spent_on', { ascending: false })
+            .order('created_at', { ascending: false }),
+          supabase
+            .from('expense_categories')
+            .select('id, name, color, soft_color, icon, is_default')
+            .eq('user_id', userId)
+            .order('is_default', { ascending: false })
+            .order('created_at', { ascending: true }),
+        ]),
+        BUDGET_REQUEST_TIMEOUT_MS,
+        'Budget refresh timed out.',
+      );
 
-    if (settingsResult.error || expensesResult.error || categoriesResult.error) {
+      if (settingsResult.error || expensesResult.error || categoriesResult.error) {
+        addError('general', t('remoteRefreshFailed'));
+        return;
+      }
+
+      const remoteCurrency = settingsResult.data?.currency as CurrencyCode | undefined;
+      if (remoteCurrency) {
+        setCurrencyState(remoteCurrency);
+      }
+
+      setExpenses(expensesResult.data?.map(fromRemoteExpense) ?? []);
+
+      const remoteCategories = categoriesResult.data?.map(fromRemoteCategory) ?? [];
+      if (remoteCategories.length > 0) {
+        setCategories(remoteCategories);
+      }
+    } catch (error) {
+      if (__DEV__) {
+        console.warn('Budget refresh failed', error);
+      }
+
       addError('general', t('remoteRefreshFailed'));
+    } finally {
       setIsSyncing(false);
-      return;
     }
-
-    const remoteCurrency = settingsResult.data?.currency as CurrencyCode | undefined;
-    if (remoteCurrency) {
-      setCurrencyState(remoteCurrency);
-    }
-
-    setExpenses(expensesResult.data?.map(fromRemoteExpense) ?? []);
-
-    const remoteCategories = categoriesResult.data?.map(fromRemoteCategory) ?? [];
-    if (remoteCategories.length > 0) {
-      setCategories(remoteCategories);
-    }
-
-    setIsSyncing(false);
   }, [addError, clearError, t, userId]);
 
   return {

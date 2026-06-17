@@ -1,11 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { CURRENCIES } from '../constants/categories';
+import { withTimeout } from './async';
 import type { CurrencyCode, ExchangeRates } from '../types/budget';
 
 const CACHE_KEY = 'pocketwallet_exchange_rates_v1';
 const RATE_API_URL = 'https://api.frankfurter.app/latest?from=TRY&to=USD,EUR,GBP';
 const MAX_EXCHANGE_RATE_AGE_MS = 2 * 24 * 60 * 60 * 1000;
+const EXCHANGE_RATE_TIMEOUT_MS = 7000;
+const EXCHANGE_RATE_CACHE_TIMEOUT_MS = 3000;
 
 const fallbackRates: ExchangeRates = {
   base: 'TRY',
@@ -21,7 +24,11 @@ const fallbackRates: ExchangeRates = {
 };
 
 export async function getCachedExchangeRates() {
-  const raw = await AsyncStorage.getItem(CACHE_KEY);
+  const raw = await withTimeout(
+    AsyncStorage.getItem(CACHE_KEY),
+    EXCHANGE_RATE_CACHE_TIMEOUT_MS,
+    'Exchange rate cache read timed out.',
+  );
   if (!raw) {
     return null;
   }
@@ -47,7 +54,7 @@ export function withExchangeRatesFreshness(rates: ExchangeRates) {
 }
 
 export async function fetchExchangeRates(): Promise<ExchangeRates> {
-  const response = await fetch(RATE_API_URL);
+  const response = await withTimeout(fetch(RATE_API_URL), EXCHANGE_RATE_TIMEOUT_MS, 'Exchange rate request timed out.');
 
   if (!response.ok) {
     throw new Error('Exchange rate request failed.');

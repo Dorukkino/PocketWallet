@@ -4,14 +4,25 @@ import 'react-native-url-polyfill/auto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+const fallbackSupabaseUrl = 'https://placeholder.supabase.co';
+const fallbackSupabaseKey = 'missing-supabase-publishable-key';
 
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error('Supabase environment variables are missing.');
-}
+const normalizeSupabaseUrl = (value?: string) => {
+  try {
+    const parsedUrl = new URL(value ?? '');
+    return parsedUrl.protocol === 'https:' ? parsedUrl.toString().replace(/\/$/, '') : null;
+  } catch {
+    return null;
+  }
+};
 
-export const supabase = createClient(supabaseUrl, supabaseKey, {
+const supabaseUrl = normalizeSupabaseUrl(process.env.EXPO_PUBLIC_SUPABASE_URL);
+const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim() || null;
+
+export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseKey);
+export const supabaseConfigurationError = isSupabaseConfigured ? null : 'Supabase environment variables are missing.';
+
+export const supabase = createClient(supabaseUrl ?? fallbackSupabaseUrl, supabaseKey ?? fallbackSupabaseKey, {
   auth: {
     storage: AsyncStorage,
     autoRefreshToken: true,

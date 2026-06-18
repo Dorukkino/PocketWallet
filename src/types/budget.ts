@@ -16,10 +16,16 @@ export type Expense = {
   id: string;
   title: string;
   amount: number;
+  currency?: CurrencyCode;
   category: CategoryName;
   spentOn: string;
   createdAt: string;
   pending?: boolean;
+};
+
+export type MonthlyIncome = {
+  amount: number;
+  currency: CurrencyCode;
 };
 
 export type BudgetPeriod = {
@@ -35,7 +41,7 @@ export type BudgetSnapshot = {
   expenses: Expense[];
   categories?: ExpenseCategory[];
   budgetStartDate?: string;
-  monthlyIncomes?: Record<string, number>;
+  monthlyIncomes?: Record<string, number | MonthlyIncome>;
   updatedAt: string;
 };
 

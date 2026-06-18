@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight, Plus, Trash2, X } from 'lucide-react-native'
 import { CATEGORY_COLORS, CURRENCIES } from '../constants/categories';
 import { useI18n } from '../i18n';
 import { formatCurrencyValue } from '../lib/currency';
-import type { CategoryName, ExchangeRates, ExpenseCategory } from '../types/budget';
+import type { CategoryName, CurrencyCode, ExchangeRates, ExpenseCategory } from '../types/budget';
 import { CategoryIcon } from './CategoryIcon';
 
 type Props = {
@@ -17,6 +17,7 @@ type Props = {
   onAddExpense: (expense: {
     title: string;
     amount: number;
+    currency: CurrencyCode;
     category: CategoryName;
     spentOn: string;
   }) => Promise<void>;
@@ -91,7 +92,16 @@ const getCalendarDays = (monthKey: string) => {
   return days;
 };
 
-const normalizeAmountInput = (value: string) => value.replace(/\D/g, '');
+const normalizeDecimalInput = (value: string) => {
+  const cleaned = value.replace(/[^\d.,]/g, '').replace(',', '.');
+  const parts = cleaned.split('.');
+
+  if (parts.length <= 1) {
+    return cleaned;
+  }
+
+  return `${parts[0]}.${parts.slice(1).join('')}`;
+};
 
 export function ExpenseForm({
   categories,
@@ -106,6 +116,7 @@ export function ExpenseForm({
   const { categoryLabel, locale, t } = useI18n();
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
+  const [expenseCurrency, setExpenseCurrency] = useState<CurrencyCode>('TRY');
   const [category, setCategory] = useState<CategoryName>(categories[0]?.name ?? 'Diğer');
   const [newCategoryName, setNewCategoryName] = useState('');
   const [selectedIcon, setSelectedIcon] = useState('briefcase');
@@ -120,6 +131,7 @@ export function ExpenseForm({
   const categoryErrorMessages = useMemo(() => Array.from(new Set(errors.filter(Boolean))), [errors]);
   const parsedPreviewAmount = Number(amount.replace(',', '.'));
   const canShowPreview = Number.isFinite(parsedPreviewAmount) && parsedPreviewAmount > 0;
+  const selectedCurrencySymbol = CURRENCIES.find((item) => item.code === expenseCurrency)?.symbol ?? '₺';
   const calendarDays = useMemo(() => getCalendarDays(pickerMonthKey), [pickerMonthKey]);
   const weekdayLabels = useMemo(() => {
     return Array.from({ length: 7 }, (_, index) =>
@@ -169,6 +181,7 @@ export function ExpenseForm({
     await onAddExpense({
       title: title.trim() || categoryLabel(category),
       amount: parsedAmount,
+      currency: expenseCurrency,
       category,
       spentOn: spentOn || defaultSpentOn,
     });
@@ -201,7 +214,7 @@ export function ExpenseForm({
   };
 
   const updateAmount = (value: string) => {
-    setAmount(normalizeAmountInput(value));
+    setAmount(normalizeDecimalInput(value));
   };
 
   return (
@@ -237,21 +250,42 @@ export function ExpenseForm({
         />
       </View>
 
+      <View style={styles.field}>
+        <Text style={styles.label}>{t('expenseCurrency')}</Text>
+        <View style={styles.currencyRow}>
+          {CURRENCIES.map((item) => {
+            const isActive = expenseCurrency === item.code;
+            return (
+              <Pressable
+                key={item.code}
+                onPress={() => setExpenseCurrency(item.code)}
+                style={[styles.currencyPill, isActive && styles.currencyPillActive]}
+              >
+                <Text style={[styles.currencyPillCode, isActive && styles.currencyPillTextActive]}>{item.code}</Text>
+                <Text style={[styles.currencyPillSymbol, isActive && styles.currencyPillTextActive]}>{item.symbol}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+
       <View style={styles.row}>
         <View style={[styles.field, styles.rowField]}>
-          <Text style={styles.label}>{t('amountTry')}</Text>
+          <Text style={styles.label}>{t('amountInCurrency', { currency: expenseCurrency })}</Text>
           <TextInput
             value={amount}
             onChangeText={updateAmount}
-            keyboardType="number-pad"
-            placeholder="₺0.00"
+            keyboardType="decimal-pad"
+            placeholder={`${selectedCurrencySymbol}0.00`}
             placeholderTextColor="#475569"
             style={styles.input}
           />
           {canShowPreview ? (
             <Text style={styles.conversionPreview}>
-              {CURRENCIES.filter((item) => item.code !== 'TRY')
-                .map((item) => formatCurrencyValue(parsedPreviewAmount, item.code, exchangeRates, locale))
+              {CURRENCIES.filter((item) => item.code !== expenseCurrency)
+                .map((item) =>
+                  formatCurrencyValue(parsedPreviewAmount, item.code, exchangeRates, locale, expenseCurrency),
+                )
                 .join('  ·  ')}
             </Text>
           ) : null}
@@ -550,6 +584,39 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
     marginTop: 1,
+  },
+  currencyRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  currencyPill: {
+    alignItems: 'center',
+    backgroundColor: '#020617',
+    borderColor: '#1e293b',
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  currencyPillActive: {
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    borderColor: '#34d399',
+  },
+  currencyPillCode: {
+    color: '#94a3b8',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  currencyPillSymbol: {
+    color: '#64748b',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  currencyPillTextActive: {
+    color: '#ecfdf5',
   },
   categoryGrid: {
     flexDirection: 'row',

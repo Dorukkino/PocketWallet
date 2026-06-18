@@ -20,7 +20,11 @@ import { isSupabaseConfigured, supabase } from '../lib/supabase';
 
 const AUTH_REQUEST_TIMEOUT_MS = 10000;
 
-export function AuthScreen() {
+type Props = {
+  onContinueAsGuest: () => void;
+};
+
+export function AuthScreen({ onContinueAsGuest }: Props) {
   const { t } = useI18n();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -162,6 +166,17 @@ export function AuthScreen() {
             {mode === 'sign-in' ? t('switchToSignUp') : t('switchToSignIn')}
           </Text>
         </Pressable>
+
+        <View style={styles.dividerRow}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>{t('or')}</Text>
+          <View style={styles.dividerLine} />
+        </View>
+
+        <Pressable onPress={onContinueAsGuest} style={styles.guestButton}>
+          <UserRound color="#94a3b8" size={18} />
+          <Text style={styles.guestButtonText}>{t('continueAsGuest')}</Text>
+        </Pressable>
       </View>
     </KeyboardAvoidingView>
   );
@@ -270,6 +285,41 @@ const styles = StyleSheet.create({
   switchText: {
     color: '#5eead4',
     fontSize: 13,
+    fontWeight: '800',
+  },
+  dividerRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 20,
+  },
+  dividerLine: {
+    backgroundColor: 'rgba(51, 65, 85, 0.9)',
+    flex: 1,
+    height: 1,
+  },
+  dividerText: {
+    color: '#64748b',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  guestButton: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(2, 6, 23, 0.72)',
+    borderColor: 'rgba(100, 116, 139, 0.55)',
+    borderRadius: 18,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 10,
+    height: 52,
+    justifyContent: 'center',
+    marginTop: 14,
+  },
+  guestButtonText: {
+    color: '#e2e8f0',
+    fontSize: 15,
     fontWeight: '800',
   },
 });

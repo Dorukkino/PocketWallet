@@ -17,7 +17,7 @@
       "bundleIdentifier": "com.dorukkino.pocketwallet",
       "buildNumber": "1",
       "infoPlist": {
-        "NSUserTrackingUsageDescription": "Bu tanımlayıcı size kişiselleştirilmiş reklamlar sunmak için kullanılacaktır."
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -28,7 +28,10 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "com.google.android.gms.permission.AD_ID"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -38,16 +41,14 @@
         "react-native-google-mobile-ads",
         {
           "androidAppId": "ca-app-pub-3940256099942544~3347511713",
-          "iosAppId": "ca-app-pub-9076740570868318~6564831937",
-          "userTrackingUsageDescription": "Bu tanımlayıcı size kişiselleştirilmiş reklamlar sunmak için kullanılacaktır."
-        }
-      ],
-      [
-        "expo-tracking-transparency",
-        {
-          "userTrackingPermission": "Bu tanımlayıcı size kişiselleştirilmiş reklamlar sunmak için kullanılacaktır."
+          "iosAppId": "ca-app-pub-9076740570868318~6564831937"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "beeff861-5e67-40e2-bb77-ce1f2fa8ef5e"
+      }
+    }
   }
 }

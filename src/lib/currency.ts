@@ -86,13 +86,56 @@ export function getFallbackExchangeRates() {
   return fallbackRates;
 }
 
+export function convertToTry(amount: number, fromCurrency: CurrencyCode, rates: ExchangeRates) {
+  if (fromCurrency === 'TRY') {
+    return amount;
+  }
+
+  const rate = rates.rates[fromCurrency];
+  if (!rate) {
+    return amount;
+  }
+
+  return amount / rate;
+}
+
 export function convertFromTry(amountTry: number, currency: CurrencyCode, rates: ExchangeRates) {
   return amountTry * rates.rates[currency];
 }
 
-export function formatCurrencyValue(amountTry: number, currency: CurrencyCode, rates: ExchangeRates, locale = 'tr-TR') {
-  const symbol = CURRENCIES.find((item) => item.code === currency)?.symbol ?? '₺';
-  const converted = convertFromTry(amountTry, currency, rates);
+export function convertCurrency(
+  amount: number,
+  fromCurrency: CurrencyCode,
+  toCurrency: CurrencyCode,
+  rates: ExchangeRates,
+) {
+  if (fromCurrency === toCurrency) {
+    return amount;
+  }
+
+  return convertFromTry(convertToTry(amount, fromCurrency, rates), toCurrency, rates);
+}
+
+export function getExpenseCurrency(expense: { currency?: CurrencyCode }) {
+  return expense.currency ?? 'TRY';
+}
+
+export function expenseAmountInTry(
+  expense: { amount: number; currency?: CurrencyCode },
+  rates: ExchangeRates,
+) {
+  return convertToTry(expense.amount, getExpenseCurrency(expense), rates);
+}
+
+export function formatCurrencyValue(
+  amount: number,
+  displayCurrency: CurrencyCode,
+  rates: ExchangeRates,
+  locale = 'tr-TR',
+  sourceCurrency: CurrencyCode = 'TRY',
+) {
+  const symbol = CURRENCIES.find((item) => item.code === displayCurrency)?.symbol ?? '₺';
+  const converted = convertCurrency(amount, sourceCurrency, displayCurrency, rates);
   const sign = converted < 0 ? '-' : '';
   const absoluteValue = Math.abs(converted);
 

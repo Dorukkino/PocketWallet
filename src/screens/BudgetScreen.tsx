@@ -35,7 +35,9 @@ import { supabase } from '../lib/supabase';
 import type { BudgetPeriod } from '../types/budget';
 
 type Props = {
-  session: Session;
+  session: Session | null;
+  isGuest?: boolean;
+  onExitGuest?: () => void;
 };
 
 const wait = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -77,10 +79,10 @@ const getSavingsAdviceKey = (savingsPercent: number): TranslationKey => {
   return 'adviceSavingsLow';
 };
 
-export function BudgetScreen({ session }: Props) {
+export function BudgetScreen({ session, isGuest = false, onExitGuest }: Props) {
   const { locale, t } = useI18n();
-  const budget = useBudget(session);
   const exchange = useExchangeRates();
+  const budget = useBudget(session, exchange.rates);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
   const [isMonthPickerVisible, setIsMonthPickerVisible] = useState(false);
@@ -115,6 +117,20 @@ export function BudgetScreen({ session }: Props) {
   };
 
   const signOut = () => {
+    if (isGuest) {
+      Alert.alert(t('exitGuest'), t('exitGuestConfirm'), [
+        { text: t('signOutCancel'), style: 'cancel' },
+        {
+          text: t('exitGuest'),
+          style: 'destructive',
+          onPress: () => {
+            onExitGuest?.();
+          },
+        },
+      ]);
+      return;
+    }
+
     Alert.alert(t('signOut'), t('signOutConfirm'), [
       { text: t('signOutCancel'), style: 'cancel' },
       {
@@ -128,6 +144,10 @@ export function BudgetScreen({ session }: Props) {
   };
 
   const deleteAccount = () => {
+    if (!session || isGuest) {
+      return;
+    }
+
     if (isDeletingAccount) {
       return;
     }
@@ -179,7 +199,7 @@ export function BudgetScreen({ session }: Props) {
 
   const savingsPercent = Math.min(
     100,
-    Math.max(0, Math.round((budget.remainingBalance / Math.max(budget.income, 1)) * 100)),
+    Math.max(0, Math.round((budget.remainingBalance / Math.max(budget.incomeInTry, 1)) * 100)),
   );
   const savingsAdviceKey = getSavingsAdviceKey(savingsPercent);
   const showIosRefreshIndicator = Platform.OS === 'ios' && pullDistance > 12;
@@ -318,7 +338,7 @@ export function BudgetScreen({ session }: Props) {
         ) : null}
 
         <BalanceHeader
-          income={budget.income}
+          incomeEntry={budget.incomeEntry}
           totalExpense={budget.totalExpense}
           remainingBalance={budget.remainingBalance}
           spendRatio={budget.spendRatio}
@@ -360,7 +380,7 @@ export function BudgetScreen({ session }: Props) {
         <View style={styles.adviceCard}>
           <Text style={styles.adviceTitle}>{t('financialAdvice')}</Text>
           <Text style={styles.adviceText}>
-            {budget.income === 0 && budget.totalExpense === 0
+            {budget.incomeInTry === 0 && budget.totalExpense === 0
               ? t('adviceEmpty')
               : budget.remainingBalance >= 0
                 ? t(savingsAdviceKey, { percent: savingsPercent })
@@ -368,28 +388,30 @@ export function BudgetScreen({ session }: Props) {
           </Text>
         </View>
 
-        <View style={styles.deleteAccountCard}>
-          <View style={styles.deleteAccountHeader}>
-            <View style={styles.deleteAccountIcon}>
-              <Trash2 color="#fca5a5" size={20} />
+        {!isGuest ? (
+          <View style={styles.deleteAccountCard}>
+            <View style={styles.deleteAccountHeader}>
+              <View style={styles.deleteAccountIcon}>
+                <Trash2 color="#fca5a5" size={20} />
+              </View>
+              <View style={styles.deleteAccountCopy}>
+                <Text style={styles.deleteAccountTitle}>{t('deleteAccount')}</Text>
+                <Text style={styles.deleteAccountText}>{t('deleteAccountDescription')}</Text>
+              </View>
             </View>
-            <View style={styles.deleteAccountCopy}>
-              <Text style={styles.deleteAccountTitle}>{t('deleteAccount')}</Text>
-              <Text style={styles.deleteAccountText}>{t('deleteAccountDescription')}</Text>
-            </View>
+            <Pressable
+              disabled={isDeletingAccount}
+              onPress={deleteAccount}
+              style={[styles.deleteAccountButton, isDeletingAccount && styles.deleteAccountButtonDisabled]}
+            >
+              {isDeletingAccount ? (
+                <ActivityIndicator color="#fee2e2" />
+              ) : (
+                <Text style={styles.deleteAccountButtonText}>{t('deleteAccount')}</Text>
+              )}
+            </Pressable>
           </View>
-          <Pressable
-            disabled={isDeletingAccount}
-            onPress={deleteAccount}
-            style={[styles.deleteAccountButton, isDeletingAccount && styles.deleteAccountButtonDisabled]}
-          >
-            {isDeletingAccount ? (
-              <ActivityIndicator color="#fee2e2" />
-            ) : (
-              <Text style={styles.deleteAccountButtonText}>{t('deleteAccount')}</Text>
-            )}
-          </Pressable>
-        </View>
+        ) : null}
       </ScrollView>
 
       <Modal

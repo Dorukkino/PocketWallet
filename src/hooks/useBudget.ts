@@ -4,13 +4,24 @@ import type { Session } from '@supabase/supabase-js';
 import { CATEGORIES, CATEGORY_COLORS, DEFAULT_EXPENSES } from '../constants/categories';
 import { useI18n } from '../i18n';
 import { withTimeout } from '../lib/async';
+import { convertToTry, expenseAmountInTry, getExpenseCurrency } from '../lib/currency';
 import { readBudgetSnapshot, writeBudgetSnapshot } from '../lib/storage';
 import { supabase } from '../lib/supabase';
-import type { BudgetPeriod, BudgetSnapshot, CategoryName, CurrencyCode, Expense, ExpenseCategory } from '../types/budget';
+import type {
+  BudgetPeriod,
+  BudgetSnapshot,
+  CategoryName,
+  CurrencyCode,
+  ExchangeRates,
+  Expense,
+  ExpenseCategory,
+  MonthlyIncome,
+} from '../types/budget';
 
 type ExpenseInsert = {
   title: string;
   amount: number;
+  currency: CurrencyCode;
   category: CategoryName;
   spentOn: string;
 };
@@ -83,6 +94,7 @@ const fromRemoteExpense = (row: {
   id: string;
   title: string;
   amount: number | string;
+  currency?: CurrencyCode | null;
   category: CategoryName;
   spent_on: string;
   created_at: string;
@@ -90,6 +102,7 @@ const fromRemoteExpense = (row: {
   id: row.id,
   title: row.title,
   amount: Number(row.amount),
+  currency: row.currency ?? 'TRY',
   category: row.category,
   spentOn: row.spent_on,
   createdAt: row.created_at,
@@ -129,25 +142,56 @@ const createEmptyErrors = (): BudgetErrors => ({
 const BUDGET_REQUEST_TIMEOUT_MS = 8000;
 const LOCAL_STORAGE_TIMEOUT_MS = 3000;
 
-export function useBudget(session: Session | null) {
+const defaultMonthlyIncome = (currency: CurrencyCode = 'TRY'): MonthlyIncome => ({
+  amount: 0,
+  currency,
+});
+
+const normalizeExpenses = (items: Expense[]): Expense[] =>
+  items.map((expense) => ({
+    ...expense,
+    currency: getExpenseCurrency(expense),
+  }));
+
+const normalizeMonthlyIncomes = (
+  data?: BudgetSnapshot['monthlyIncomes'],
+  fallbackCurrency: CurrencyCode = 'TRY',
+): Record<string, MonthlyIncome> => {
+  if (!data) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(data).map(([monthKey, value]) => {
+      if (typeof value === 'number') {
+        return [monthKey, { amount: value, currency: 'TRY' }];
+      }
+
+      return [monthKey, value];
+    }),
+  );
+};
+
+export function useBudget(session: Session | null, exchangeRates: ExchangeRates) {
   const { locale, t } = useI18n();
   const userId = session?.user.id;
   const fallbackBudgetStartDate = dateKeyFromIso(session?.user.created_at);
   const [currency, setCurrencyState] = useState<CurrencyCode>('TRY');
   const [expenses, setExpenses] = useState<Expense[]>(DEFAULT_EXPENSES);
   const [categories, setCategories] = useState<ExpenseCategory[]>(CATEGORIES);
-  const [monthlyIncomes, setMonthlyIncomes] = useState<Record<string, number>>({});
+  const [monthlyIncomes, setMonthlyIncomes] = useState<Record<string, MonthlyIncome>>({});
   const [budgetStartDate, setBudgetStartDate] = useState(fallbackBudgetStartDate);
   const [selectedMonthKey, setSelectedMonthKey] = useState(monthKeyFromDateKey(today()));
   const [isHydrating, setIsHydrating] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [errors, setErrors] = useState<BudgetErrors>(createEmptyErrors);
 
-  const income = monthlyIncomes[selectedMonthKey] ?? 0;
+  const incomeEntry = monthlyIncomes[selectedMonthKey] ?? defaultMonthlyIncome(currency);
+  const incomeInTry = convertToTry(incomeEntry.amount, incomeEntry.currency, exchangeRates);
 
   const snapshot = useMemo<BudgetSnapshot>(
     () => ({
-      income,
+      income: incomeInTry,
       currency,
       expenses,
       categories,
@@ -155,7 +199,7 @@ export function useBudget(session: Session | null) {
       monthlyIncomes,
       updatedAt: new Date().toISOString(),
     }),
-    [budgetStartDate, categories, currency, expenses, income, monthlyIncomes],
+    [budgetStartDate, categories, currency, expenses, incomeInTry, monthlyIncomes],
   );
 
   const addError = useCallback((placement: ErrorPlacement, message: string) => {
@@ -200,8 +244,8 @@ export function useBudget(session: Session | null) {
 
         if (mounted && cached) {
           setCurrencyState(cached.currency);
-          setExpenses(cached.expenses);
-          setMonthlyIncomes(cached.monthlyIncomes ?? {});
+          setExpenses(normalizeExpenses(cached.expenses));
+          setMonthlyIncomes(normalizeMonthlyIncomes(cached.monthlyIncomes, cached.currency));
           if (cached.budgetStartDate) {
             setBudgetStartDate(cached.budgetStartDate);
           } else {
@@ -224,7 +268,7 @@ export function useBudget(session: Session | null) {
             supabase.from('user_settings').select('monthly_income, currency').eq('user_id', userId).maybeSingle(),
             supabase
               .from('expenses')
-              .select('id, title, amount, category, spent_on, created_at')
+              .select('id, title, amount, currency, category, spent_on, created_at')
               .eq('user_id', userId)
               .order('spent_on', { ascending: false })
               .order('created_at', { ascending: false }),
@@ -253,7 +297,7 @@ export function useBudget(session: Session | null) {
           if (remoteCurrency) {
             setCurrencyState(remoteCurrency);
           }
-          setExpenses(remoteExpenses);
+          setExpenses(normalizeExpenses(remoteExpenses));
           if (remoteCategories.length > 0) {
             setCategories(remoteCategories);
           } else {
@@ -351,19 +395,20 @@ export function useBudget(session: Session | null) {
   }, [selectedPeriod.endDate, selectedPeriod.startDate]);
 
   const totals = useMemo(() => {
-    const totalExpense = periodExpenses.reduce((sum, item) => sum + item.amount, 0);
+    const totalExpense = periodExpenses.reduce((sum, item) => sum + expenseAmountInTry(item, exchangeRates), 0);
+    const remainingBalance = incomeInTry - totalExpense;
     return {
       totalExpense,
-      remainingBalance: income - totalExpense,
-      spendRatio: income > 0 ? Math.round((totalExpense / income) * 100) : 0,
+      remainingBalance,
+      spendRatio: incomeInTry > 0 ? Math.round((totalExpense / incomeInTry) * 100) : 0,
     };
-  }, [periodExpenses, income]);
+  }, [exchangeRates, incomeInTry, periodExpenses]);
 
   const categoryStats = useMemo(() => {
     return categories.map((category) => {
       const total = periodExpenses
         .filter((item) => item.category === category.name)
-        .reduce((sum, item) => sum + item.amount, 0);
+        .reduce((sum, item) => sum + expenseAmountInTry(item, exchangeRates), 0);
 
       return {
         name: category.name,
@@ -373,13 +418,13 @@ export function useBudget(session: Session | null) {
         percentage: totals.totalExpense > 0 ? Math.round((total / totals.totalExpense) * 100) : 0,
       };
     }).filter((item) => item.total > 0).sort((first, second) => second.total - first.total);
-  }, [categories, periodExpenses, totals.totalExpense]);
+  }, [categories, exchangeRates, periodExpenses, totals.totalExpense]);
 
   const updateIncome = useCallback(
-    async (nextIncome: number) => {
+    async (nextIncome: number, incomeCurrency: CurrencyCode) => {
       setMonthlyIncomes((current) => ({
         ...current,
-        [selectedMonthKey]: nextIncome,
+        [selectedMonthKey]: { amount: nextIncome, currency: incomeCurrency },
       }));
     },
     [selectedMonthKey],
@@ -414,6 +459,7 @@ export function useBudget(session: Session | null) {
         id: makeUuid(),
         title: input.title.trim(),
         amount: input.amount,
+        currency: input.currency,
         category: input.category,
         spentOn: input.spentOn || today(),
         createdAt: new Date().toISOString(),
@@ -431,6 +477,7 @@ export function useBudget(session: Session | null) {
         user_id: userId,
         title: newExpense.title,
         amount: newExpense.amount,
+        currency: newExpense.currency,
         category: newExpense.category,
         spent_on: newExpense.spentOn,
       });
@@ -606,7 +653,7 @@ export function useBudget(session: Session | null) {
         setCurrencyState(remoteCurrency);
       }
 
-      setExpenses(expensesResult.data?.map(fromRemoteExpense) ?? []);
+      setExpenses(normalizeExpenses(expensesResult.data?.map(fromRemoteExpense) ?? []));
 
       const remoteCategories = categoriesResult.data?.map(fromRemoteCategory) ?? [];
       if (remoteCategories.length > 0) {
@@ -624,7 +671,8 @@ export function useBudget(session: Session | null) {
   }, [addError, clearError, t, userId]);
 
   return {
-    income,
+    incomeEntry,
+    incomeInTry,
     currency,
     expenses: periodExpenses,
     categories,

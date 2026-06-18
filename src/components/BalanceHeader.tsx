@@ -3,23 +3,24 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ArrowDownRight, ArrowUpRight, Check, Pencil } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
+import { CURRENCIES } from '../constants/categories';
 import { useI18n } from '../i18n';
-import { formatCurrencyValue } from '../lib/currency';
-import type { CurrencyCode, ExchangeRates } from '../types/budget';
+import { convertCurrency, formatCurrencyValue } from '../lib/currency';
+import type { CurrencyCode, ExchangeRates, MonthlyIncome } from '../types/budget';
 
 type Props = {
-  income: number;
+  incomeEntry: MonthlyIncome;
   totalExpense: number;
   remainingBalance: number;
   spendRatio: number;
   currency: CurrencyCode;
   exchangeRates: ExchangeRates;
   resetSignal: number;
-  onIncomeChange: (income: number) => void;
+  onIncomeChange: (income: number, incomeCurrency: CurrencyCode) => void;
 };
 
 export function BalanceHeader({
-  income,
+  incomeEntry,
   totalExpense,
   remainingBalance,
   spendRatio,
@@ -30,16 +31,17 @@ export function BalanceHeader({
 }: Props) {
   const { locale, t } = useI18n();
   const [isEditing, setIsEditing] = useState(false);
-  const [incomeInput, setIncomeInput] = useState(String(income));
+  const [incomeInput, setIncomeInput] = useState('');
   const [error, setError] = useState('');
+  const incomeEntrySymbol = CURRENCIES.find((item) => item.code === incomeEntry.currency)?.symbol ?? '₺';
 
   const formattedBalance = useMemo(
     () => formatCurrencyValue(remainingBalance, currency, exchangeRates, locale),
     [currency, exchangeRates, locale, remainingBalance],
   );
   const formattedIncome = useMemo(
-    () => formatCurrencyValue(income, currency, exchangeRates, locale),
-    [currency, exchangeRates, income, locale],
+    () => formatCurrencyValue(incomeEntry.amount, currency, exchangeRates, locale, incomeEntry.currency),
+    [currency, exchangeRates, incomeEntry.amount, incomeEntry.currency, locale],
   );
   const formattedExpense = useMemo(
     () => formatCurrencyValue(totalExpense, currency, exchangeRates, locale),
@@ -70,6 +72,17 @@ export function BalanceHeader({
     setError('');
   }, [resetSignal]);
 
+  const openIncomeEditor = () => {
+    const amountInSelectedCurrency = convertCurrency(
+      incomeEntry.amount,
+      incomeEntry.currency,
+      currency,
+      exchangeRates,
+    );
+    setIncomeInput(String(amountInSelectedCurrency));
+    setIsEditing(true);
+  };
+
   const saveIncome = () => {
     const parsed = Number(incomeInput.replace(',', '.'));
     if (!Number.isFinite(parsed) || parsed < 0) {
@@ -77,7 +90,7 @@ export function BalanceHeader({
       return;
     }
 
-    onIncomeChange(parsed);
+    onIncomeChange(parsed, currency);
     setIsEditing(false);
     setError('');
   };
@@ -122,7 +135,7 @@ export function BalanceHeader({
                   value={incomeInput}
                   onChangeText={setIncomeInput}
                   keyboardType="decimal-pad"
-                  placeholder="TRY 0.00"
+                  placeholder={`${currency} 0.00`}
                   placeholderTextColor="#475569"
                   autoFocus
                   style={styles.incomeInput}
@@ -131,19 +144,26 @@ export function BalanceHeader({
                   <Check color="#022c22" size={18} />
                 </Pressable>
               </View>
-              <Text style={styles.editHint}>{t('incomeSavedAsTry')}</Text>
+              <Text style={styles.editHint}>{t('incomeSavedAsCurrency', { currency })}</Text>
               {error ? <Text style={styles.errorText}>{error}</Text> : null}
             </View>
           ) : (
             <View style={styles.valueRow}>
-              <Text style={[styles.summaryValue, styles.incomeValue]}>{formattedIncome}</Text>
-              <Pressable
-                onPress={() => {
-                  setIncomeInput(String(income));
-                  setIsEditing(true);
-                }}
-                hitSlop={10}
-              >
+              <View style={styles.incomeValueBlock}>
+                <Text style={[styles.summaryValue, styles.incomeValue]}>{formattedIncome}</Text>
+                {incomeEntry.currency !== currency ? (
+                  <Text style={styles.incomeSourceHint}>
+                    {t('incomeEnteredAs', {
+                      amount: `${incomeEntrySymbol}${incomeEntry.amount.toLocaleString(locale, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}`,
+                      currency: incomeEntry.currency,
+                    })}
+                  </Text>
+                ) : null}
+              </View>
+              <Pressable onPress={openIncomeEditor} hitSlop={10}>
                 <Pencil color="#94a3b8" size={15} />
               </Pressable>
             </View>
@@ -249,12 +269,23 @@ const styles = StyleSheet.create({
   },
   incomeValue: {
     color: '#34d399',
+    marginTop: 0,
+  },
+  incomeValueBlock: {
+    flex: 1,
+    gap: 4,
+    marginTop: 16,
+  },
+  incomeSourceHint: {
+    color: '#64748b',
+    fontSize: 10,
+    fontWeight: '700',
   },
   expenseValue: {
     color: '#fb7185',
   },
   valueRow: {
-    alignItems: 'center',
+    alignItems: 'flex-start',
     flexDirection: 'row',
     gap: 8,
     justifyContent: 'space-between',

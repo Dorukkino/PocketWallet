@@ -73,6 +73,7 @@ export const DEFAULT_EXPENSES = [
     id: 'f1f2f3f4-1000-4000-8000-000000000001',
     title: 'Elektrik ve İnternet Faturaları',
     amount: 1850,
+    currency: 'TRY',
     category: 'Faturalar',
     spentOn: '2026-06-01',
     createdAt: '2026-06-01T09:00:00.000Z',
@@ -81,6 +82,7 @@ export const DEFAULT_EXPENSES = [
     id: 'f1f2f3f4-1000-4000-8000-000000000002',
     title: 'Haftalık Süpermarket Alışverişi',
     amount: 4200,
+    currency: 'TRY',
     category: 'Mutfak',
     spentOn: '2026-06-03',
     createdAt: '2026-06-03T12:00:00.000Z',
@@ -89,6 +91,7 @@ export const DEFAULT_EXPENSES = [
     id: 'f1f2f3f4-1000-4000-8000-000000000003',
     title: 'Sinema ve Konser Biletleri',
     amount: 1250,
+    currency: 'TRY',
     category: 'Eğlence',
     spentOn: '2026-06-04',
     createdAt: '2026-06-04T20:00:00.000Z',
@@ -97,6 +100,7 @@ export const DEFAULT_EXPENSES = [
   id: string;
   title: string;
   amount: number;
+  currency: 'TRY';
   category: string;
   spentOn: string;
   createdAt: string;

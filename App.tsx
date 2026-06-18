@@ -17,6 +17,7 @@ const BOOT_SESSION_TIMEOUT_MS = 7000;
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
+  const [isGuest, setIsGuest] = useState(false);
   const [isBooting, setIsBooting] = useState(true);
   const admin = useAdmin(session);
 
@@ -68,6 +69,9 @@ export default function App() {
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       if (mounted) {
         setSession(nextSession);
+        if (nextSession) {
+          setIsGuest(false);
+        }
       }
     });
 
@@ -106,8 +110,10 @@ export default function App() {
         ) : (
           <BudgetScreen session={session} />
         )
+      ) : isGuest ? (
+        <BudgetScreen session={null} isGuest onExitGuest={() => setIsGuest(false)} />
       ) : (
-        <AuthScreen />
+        <AuthScreen onContinueAsGuest={() => setIsGuest(true)} />
       )}
       <StatusBar style="light" />
     </LanguageProvider>

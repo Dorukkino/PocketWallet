@@ -2,8 +2,9 @@ import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Search, Trash2 } from 'lucide-react-native';
 
+import { CURRENCIES } from '../constants/categories';
 import { useI18n } from '../i18n';
-import { formatCurrencyValue } from '../lib/currency';
+import { expenseAmountInTry, formatCurrencyValue, getExpenseCurrency } from '../lib/currency';
 import type { CategoryName, CurrencyCode, ExchangeRates, Expense, ExpenseCategory } from '../types/budget';
 import { CategoryIcon } from './CategoryIcon';
 
@@ -112,6 +113,8 @@ export function TransactionList({ expenses, categories, currency, exchangeRates,
               softColor: 'rgba(100, 116, 139, 0.16)',
               icon: 'briefcase',
             };
+            const expenseCurrency = getExpenseCurrency(expense);
+            const expenseEntrySymbol = CURRENCIES.find((item) => item.code === expenseCurrency)?.symbol ?? '₺';
 
             return (
               <View key={expense.id} style={styles.item}>
@@ -131,10 +134,26 @@ export function TransactionList({ expenses, categories, currency, exchangeRates,
                 </View>
 
                 <View style={styles.itemRight}>
-                  <Text style={styles.itemAmount}>-{formatCurrencyValue(expense.amount, currency, exchangeRates, locale)}</Text>
-                  {currency !== 'TRY' ? (
+                  <Text style={styles.itemAmount}>
+                    -{formatCurrencyValue(expense.amount, currency, exchangeRates, locale, expenseCurrency)}
+                  </Text>
+                  {expenseCurrency !== currency ? (
                     <Text style={styles.itemTryAmount}>
-                      ₺{expense.amount.toLocaleString(locale, { minimumFractionDigits: 2 })}
+                      {t('expenseEnteredAs', {
+                        amount: `${expenseEntrySymbol}${expense.amount.toLocaleString(locale, {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}`,
+                        currency: expenseCurrency,
+                      })}
+                    </Text>
+                  ) : expenseCurrency !== 'TRY' ? (
+                    <Text style={styles.itemTryAmount}>
+                      {t('tryEquivalent')} ₺
+                      {expenseAmountInTry(expense, exchangeRates).toLocaleString(locale, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
                     </Text>
                   ) : null}
                   <Pressable onPress={() => onDeleteExpense(expense.id)} hitSlop={10} style={styles.deleteButton}>

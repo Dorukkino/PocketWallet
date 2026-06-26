@@ -28,7 +28,9 @@
     "build:ios": "eas build --platform ios --profile production",
     "submit:ios": "eas submit --platform ios --latest",
     "web": "expo start --web",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:push": "npx supabase db push --linked",
+    "db:link": "npx supabase link"
   },
   "private": true
 }

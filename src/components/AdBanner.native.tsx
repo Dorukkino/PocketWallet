@@ -1,9 +1,9 @@
 import { StyleSheet, View } from 'react-native';
 import { BannerAd, BannerAdSize, TestIds } from 'react-native-google-mobile-ads';
 
-const bannerAdUnitId = __DEV__
-  ? TestIds.BANNER
-  : process.env.EXPO_PUBLIC_ADMOB_IOS_BANNER_AD_UNIT_ID || TestIds.BANNER;
+import { publicEnv } from '../lib/env';
+
+const bannerAdUnitId = __DEV__ ? TestIds.BANNER : publicEnv.admobIosBannerAdUnitId || TestIds.BANNER;
 
 export function AdBanner() {
   return (

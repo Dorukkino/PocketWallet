@@ -24,9 +24,11 @@ import { BalanceHeader } from '../components/BalanceHeader';
 import { DonutChart } from '../components/DonutChart';
 import { ExpenseForm } from '../components/ExpenseForm';
 import { LanguageToggle } from '../components/LanguageToggle';
+import { MarketAdviceCard } from '../components/MarketAdviceCard';
 import { TransactionList } from '../components/TransactionList';
 import { CURRENCIES } from '../constants/categories';
 import { useExchangeRates } from '../hooks/useExchangeRates';
+import { useMarketAdvice } from '../hooks/useMarketAdvice';
 import { useBudget } from '../hooks/useBudget';
 import { TranslationKey, useI18n } from '../i18n';
 import { formatCurrencyValue } from '../lib/currency';
@@ -83,6 +85,14 @@ export function BudgetScreen({ session, isGuest = false, onExitGuest }: Props) {
   const { locale, t } = useI18n();
   const exchange = useExchangeRates();
   const budget = useBudget(session, exchange.rates);
+  const showMarketAdvice =
+    !(budget.incomeInTry === 0 && budget.totalExpense === 0) && budget.remainingBalance >= 0;
+  const {
+    advice: marketInvestmentAdvice,
+    isLoading: isMarketAdviceLoading,
+    error: marketAdviceError,
+    refreshAdvice: refreshMarketAdvice,
+  } = useMarketAdvice(budget.totalExpense, budget.selectedPeriod.monthKey, showMarketAdvice);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
   const [isMonthPickerVisible, setIsMonthPickerVisible] = useState(false);
@@ -182,9 +192,14 @@ export function BudgetScreen({ session, isGuest = false, onExitGuest }: Props) {
     setIsRefreshing(true);
     setFormResetSignal((current) => current + 1);
     budget.clearError();
-    await Promise.all([budget.refreshBudget(), exchange.refreshRates(), wait(800)]);
+    await Promise.all([
+      budget.refreshBudget(),
+      exchange.refreshRates(),
+      refreshMarketAdvice(),
+      wait(800),
+    ]);
     setIsRefreshing(false);
-  }, [budget, exchange]);
+  }, [budget, exchange, refreshMarketAdvice]);
 
   const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     if (Platform.OS !== 'ios') {
@@ -202,6 +217,18 @@ export function BudgetScreen({ session, isGuest = false, onExitGuest }: Props) {
     Math.max(0, Math.round((budget.remainingBalance / Math.max(budget.incomeInTry, 1)) * 100)),
   );
   const savingsAdviceKey = getSavingsAdviceKey(savingsPercent);
+  const fallbackAdviceText =
+    budget.incomeInTry === 0 && budget.totalExpense === 0
+      ? t('adviceEmpty')
+      : budget.remainingBalance >= 0
+        ? t(savingsAdviceKey, { percent: savingsPercent })
+        : t('adviceNegative');
+  const adviceText =
+    budget.incomeInTry === 0 && budget.totalExpense === 0
+      ? t('adviceEmpty')
+      : budget.remainingBalance < 0
+        ? t('adviceNegative')
+        : fallbackAdviceText;
   const showIosRefreshIndicator = Platform.OS === 'ios' && pullDistance > 12;
   const iosRefreshIndicatorOpacity = Math.min(1, pullDistance / 76);
 
@@ -377,16 +404,14 @@ export function BudgetScreen({ session, isGuest = false, onExitGuest }: Props) {
           onDeleteExpense={budget.deleteExpense}
         />
 
-        <View style={styles.adviceCard}>
-          <Text style={styles.adviceTitle}>{t('financialAdvice')}</Text>
-          <Text style={styles.adviceText}>
-            {budget.incomeInTry === 0 && budget.totalExpense === 0
-              ? t('adviceEmpty')
-              : budget.remainingBalance >= 0
-                ? t(savingsAdviceKey, { percent: savingsPercent })
-                : t('adviceNegative')}
-          </Text>
-        </View>
+        <MarketAdviceCard
+          advice={marketInvestmentAdvice}
+          errorKey={marketAdviceError}
+          fallbackText={adviceText}
+          isLoading={isMarketAdviceLoading}
+          locale={locale}
+          showMarketAdvice={showMarketAdvice}
+        />
 
         {!isGuest ? (
           <View style={styles.deleteAccountCard}>
@@ -715,25 +740,6 @@ const styles = StyleSheet.create({
     color: '#fbbf24',
     fontSize: 12,
     fontWeight: '800',
-  },
-  adviceCard: {
-    backgroundColor: 'rgba(16, 185, 129, 0.08)',
-    borderColor: 'rgba(16, 185, 129, 0.18)',
-    borderRadius: 22,
-    borderWidth: 1,
-    padding: 16,
-  },
-  adviceTitle: {
-    color: '#34d399',
-    fontSize: 13,
-    fontWeight: '900',
-  },
-  adviceText: {
-    color: '#cbd5e1',
-    fontSize: 12,
-    fontWeight: '600',
-    lineHeight: 18,
-    marginTop: 7,
   },
   deleteAccountCard: {
     backgroundColor: 'rgba(127, 29, 29, 0.18)',

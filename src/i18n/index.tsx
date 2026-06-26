@@ -81,6 +81,16 @@ const translations = {
     exitGuest: 'Giriş Ekranına Dön',
     exitGuestConfirm: 'Misafir modundan çıkmak istiyor musun? Verilerin bu cihazda kalır.',
     financialAdvice: 'Kişiye Özel Finansal Öneri',
+    marketAdviceLoading: 'Yatırım tavsiyesi hazırlanıyor...',
+    marketAdviceLoadFailed: 'Piyasa verileri alınamadı, genel tasarruf önerisi gösteriliyor.',
+    marketAdviceSimulationLead:
+      "Bu ay gerçekleştirdiğiniz harcamaların %15'ini tasarrufa yönlendirip ",
+    marketAdviceSimulationMid:
+      ' yatırımı olarak değerlendirmiş olsaydınız, dönem sonu itibarıyla ',
+    marketAdviceSimulationBeforeGain: ' oranında ek getiri sağlayarak ',
+    marketAdviceSimulationAfterGain: ' daha fazla birikim elde edebilirdiniz.',
+    marketAdviceDisclaimer:
+      'Burada yer alan bilgiler simülasyon amaçlı olup, yatırım tavsiyesi niteliği taşımamaktadır.',
     fullNamePlaceholder: 'Ad Soyad',
     iconSelect: 'İkon Seç',
     incomeSavedAsCurrency: 'Gelir {currency} olarak kaydedilir.',
@@ -217,6 +227,14 @@ const translations = {
     exitGuest: 'Back to Sign In',
     exitGuestConfirm: 'Leave guest mode? Your data stays on this device.',
     financialAdvice: 'Personalized Financial Advice',
+    marketAdviceLoading: 'Preparing investment advice...',
+    marketAdviceLoadFailed: 'Market data could not be loaded, showing general savings advice.',
+    marketAdviceSimulationLead: 'Had you redirected 15% of your expenditures this month into ',
+    marketAdviceSimulationMid: ', you could have achieved an additional return of ',
+    marketAdviceSimulationBeforeGain: ', accumulating an extra ',
+    marketAdviceSimulationAfterGain: ' by the end of the period.',
+    marketAdviceDisclaimer:
+      'The information provided herein is for simulation purposes only and does not constitute investment advice.',
     fullNamePlaceholder: 'Full Name',
     iconSelect: 'Select Icon',
     incomeSavedAsCurrency: 'Income is saved as {currency}.',

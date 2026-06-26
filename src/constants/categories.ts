@@ -116,5 +116,35 @@ export const CATEGORY_COLORS = [
   '#f43f5e',
   '#84cc16',
   '#14b8a6',
-  '#64748b',
 ];
+
+const ARCHIVED_CATEGORY_STYLE = {
+  color: '#64748b',
+  softColor: 'rgba(100, 116, 139, 0.16)',
+  icon: 'briefcase',
+} as const;
+
+export const resolveCategoryDisplay = (
+  categoryName: string,
+  categories: ExpenseCategory[],
+): ExpenseCategory =>
+  categories.find((category) => category.name === categoryName) ?? {
+    id: `archived-${categoryName}`,
+    name: categoryName,
+    ...ARCHIVED_CATEGORY_STYLE,
+  };
+
+export const mergeCategoriesWithExpenses = (
+  categories: ExpenseCategory[],
+  expenses: Array<{ category: string }>,
+): ExpenseCategory[] => {
+  const merged = new Map(categories.map((category) => [category.name, category]));
+
+  expenses.forEach((expense) => {
+    if (!merged.has(expense.category)) {
+      merged.set(expense.category, resolveCategoryDisplay(expense.category, categories));
+    }
+  });
+
+  return [...merged.values()];
+};

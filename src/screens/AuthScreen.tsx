@@ -1,9 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  AppState,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -15,6 +19,7 @@ import { LockKeyhole, Mail, UserRound } from 'lucide-react-native';
 import { AppLogo } from '../components/AppLogo';
 import { LanguageToggle } from '../components/LanguageToggle';
 import { useI18n } from '../i18n';
+import { authRedirectUrl } from '../lib/authLinking';
 import { withTimeout } from '../lib/async';
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
 
@@ -33,6 +38,18 @@ export function AuthScreen({ onContinueAsGuest }: Props) {
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
   const configurationMessage = isSupabaseConfigured ? '' : t('authServiceUnavailable');
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        Keyboard.dismiss();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
 
   const submit = async () => {
     if (!isSupabaseConfigured) {
@@ -66,6 +83,7 @@ export function AuthScreen({ onContinueAsGuest }: Props) {
               email: email.trim(),
               password,
               options: {
+                emailRedirectTo: authRedirectUrl,
                 data: {
                   full_name: fullName.trim(),
                 },
@@ -91,12 +109,22 @@ export function AuthScreen({ onContinueAsGuest }: Props) {
   };
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.screen}>
-      <LinearGradient colors={['#020617', '#08111f', '#020617']} style={StyleSheet.absoluteFill} />
-      <View style={styles.glowTop} />
-      <View style={styles.glowBottom} />
+    <SafeAreaView style={styles.safeArea}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
+        style={styles.screen}
+      >
+        <LinearGradient colors={['#020617', '#08111f', '#020617']} style={StyleSheet.absoluteFill} />
+        <View style={styles.glowTop} />
+        <View style={styles.glowBottom} />
 
-      <View style={styles.card}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.card}>
         <LanguageToggle style={styles.languageToggle} />
         <AppLogo size={68} style={styles.logo} />
         <Text style={styles.title}>PocketWallet</Text>
@@ -177,16 +205,23 @@ export function AuthScreen({ onContinueAsGuest }: Props) {
           <UserRound color="#94a3b8" size={18} />
           <Text style={styles.guestButtonText}>{t('continueAsGuest')}</Text>
         </Pressable>
-      </View>
-    </KeyboardAvoidingView>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    alignItems: 'center',
+  safeArea: {
     backgroundColor: '#020617',
     flex: 1,
+  },
+  screen: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: 'center',
     padding: 22,
   },

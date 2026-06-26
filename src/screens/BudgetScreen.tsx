@@ -9,6 +9,7 @@ import {
   Platform,
   Pressable,
   RefreshControl,
+  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -43,8 +44,8 @@ type Props = {
 };
 
 const wait = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
-const REFRESH_PROGRESS_OFFSET = 300;
 const IOS_REFRESH_INDICATOR_TOP = 132;
+const IOS_REFRESH_TRIGGER_DISTANCE = 72;
 
 const formatDateLabel = (dateKey: string, locale: string) => {
   const [year, month, day] = dateKey.split('-').map(Number);
@@ -198,6 +199,7 @@ export function BudgetScreen({ session, isGuest = false, onExitGuest }: Props) {
       refreshMarketAdvice(),
       wait(800),
     ]);
+    setPullDistance(0);
     setIsRefreshing(false);
   }, [budget, exchange, refreshMarketAdvice]);
 
@@ -211,6 +213,19 @@ export function BudgetScreen({ session, isGuest = false, onExitGuest }: Props) {
       Math.abs(currentPullDistance - nextPullDistance) < 2 ? currentPullDistance : nextPullDistance,
     );
   }, []);
+
+  const handleScrollEndDrag = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      if (Platform.OS !== 'ios' || isRefreshing) {
+        return;
+      }
+
+      if (event.nativeEvent.contentOffset.y <= -IOS_REFRESH_TRIGGER_DISTANCE) {
+        void refreshScreen();
+      }
+    },
+    [isRefreshing, refreshScreen],
+  );
 
   const savingsPercent = Math.min(
     100,
@@ -229,11 +244,12 @@ export function BudgetScreen({ session, isGuest = false, onExitGuest }: Props) {
       : budget.remainingBalance < 0
         ? t('adviceNegative')
         : fallbackAdviceText;
-  const showIosRefreshIndicator = Platform.OS === 'ios' && pullDistance > 12;
-  const iosRefreshIndicatorOpacity = Math.min(1, pullDistance / 76);
+  const showIosRefreshIndicator = Platform.OS === 'ios' && (pullDistance > 12 || isRefreshing);
+  const iosRefreshIndicatorOpacity = isRefreshing ? 1 : Math.min(1, pullDistance / 76);
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.screen}>
+    <SafeAreaView style={styles.safeArea}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.screen}>
       <LinearGradient colors={['#020617', '#07111f', '#020617']} style={StyleSheet.absoluteFill} />
       <View style={styles.glowTop} />
       <View style={styles.glowBottom} />
@@ -248,20 +264,21 @@ export function BudgetScreen({ session, isGuest = false, onExitGuest }: Props) {
         bounces
         contentContainerStyle={styles.content}
         onScroll={handleScroll}
+        onScrollEndDrag={handleScrollEndDrag}
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
         style={styles.scrollView}
         refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={refreshScreen}
-            tintColor={Platform.OS === 'ios' ? 'transparent' : '#34d399'}
-            colors={['#34d399']}
-            progressBackgroundColor="#0f172a"
-            progressViewOffset={REFRESH_PROGRESS_OFFSET}
-            title={Platform.OS === 'ios' ? undefined : t('refreshing')}
-            titleColor={Platform.OS === 'ios' ? 'transparent' : '#94a3b8'}
-          />
+          Platform.OS === 'android' ? (
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={refreshScreen}
+              colors={['#34d399']}
+              progressBackgroundColor="#0f172a"
+              title={t('refreshing')}
+              titleColor="#94a3b8"
+            />
+          ) : undefined
         }
       >
         <View style={styles.nav}>
@@ -486,11 +503,16 @@ export function BudgetScreen({ session, isGuest = false, onExitGuest }: Props) {
           </View>
         </View>
       </Modal>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    backgroundColor: '#020617',
+    flex: 1,
+  },
   screen: {
     backgroundColor: '#020617',
     flex: 1,
@@ -502,7 +524,7 @@ const styles = StyleSheet.create({
     gap: 18,
     paddingBottom: 34,
     paddingHorizontal: 18,
-    paddingTop: 62,
+    paddingTop: 18,
   },
   iosRefreshIndicator: {
     alignItems: 'center',

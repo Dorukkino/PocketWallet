@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 
-import { CATEGORIES, CATEGORY_COLORS, DEFAULT_EXPENSES } from '../constants/categories';
+import { CATEGORIES, CATEGORY_COLORS, DEFAULT_EXPENSES, resolveCategoryDisplay } from '../constants/categories';
 import { useI18n } from '../i18n';
 import { withTimeout } from '../lib/async';
 import { convertToTry, expenseAmountInTry, getExpenseCurrency } from '../lib/currency';
@@ -405,19 +405,27 @@ export function useBudget(session: Session | null, exchangeRates: ExchangeRates)
   }, [exchangeRates, incomeInTry, periodExpenses]);
 
   const categoryStats = useMemo(() => {
-    return categories.map((category) => {
-      const total = periodExpenses
-        .filter((item) => item.category === category.name)
-        .reduce((sum, item) => sum + expenseAmountInTry(item, exchangeRates), 0);
+    const totalsByCategory = new Map<CategoryName, number>();
 
-      return {
-        name: category.name,
-        color: category.color,
-        icon: category.icon,
-        total,
-        percentage: totals.totalExpense > 0 ? Math.round((total / totals.totalExpense) * 100) : 0,
-      };
-    }).filter((item) => item.total > 0).sort((first, second) => second.total - first.total);
+    periodExpenses.forEach((expense) => {
+      const nextTotal = (totalsByCategory.get(expense.category) ?? 0) + expenseAmountInTry(expense, exchangeRates);
+      totalsByCategory.set(expense.category, nextTotal);
+    });
+
+    return [...totalsByCategory.entries()]
+      .map(([categoryName, total]) => {
+        const category = resolveCategoryDisplay(categoryName, categories);
+
+        return {
+          name: categoryName,
+          color: category.color,
+          icon: category.icon,
+          total,
+          percentage: totals.totalExpense > 0 ? Math.round((total / totals.totalExpense) * 100) : 0,
+        };
+      })
+      .filter((item) => item.total > 0)
+      .sort((first, second) => second.total - first.total);
   }, [categories, exchangeRates, periodExpenses, totals.totalExpense]);
 
   const updateIncome = useCallback(
@@ -563,12 +571,6 @@ export function useBudget(session: Session | null, exchangeRates: ExchangeRates)
         return false;
       }
 
-      const isCategoryInUse = expenses.some((expense) => expense.category === category.name);
-      if (isCategoryInUse) {
-        addError('expenseForm', t('categoryInUse'));
-        return false;
-      }
-
       setCategories((current) => current.filter((item) => item.id !== categoryId));
 
       if (!userId || category.id.startsWith('default-')) {
@@ -589,7 +591,7 @@ export function useBudget(session: Session | null, exchangeRates: ExchangeRates)
 
       return true;
     },
-    [addError, categories, clearError, expenses, t, userId],
+    [addError, categories, clearError, t, userId],
   );
 
   const deleteExpense = useCallback(

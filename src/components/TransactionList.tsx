@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Search, Trash2 } from 'lucide-react-native';
 
-import { CURRENCIES } from '../constants/categories';
+import { CURRENCIES, mergeCategoriesWithExpenses, resolveCategoryDisplay } from '../constants/categories';
 import { useI18n } from '../i18n';
 import { expenseAmountInTry, formatCurrencyValue, getExpenseCurrency } from '../lib/currency';
 import type { CategoryName, CurrencyCode, ExchangeRates, Expense, ExpenseCategory } from '../types/budget';
@@ -23,6 +23,10 @@ export function TransactionList({ expenses, categories, currency, exchangeRates,
   const { categoryLabel, expenseTitleLabel, locale, t } = useI18n();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<FilterName>('Hepsi');
+  const displayCategories = useMemo(
+    () => mergeCategoriesWithExpenses(categories, expenses),
+    [categories, expenses],
+  );
 
   const filteredExpenses = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase(locale);
@@ -78,7 +82,7 @@ export function TransactionList({ expenses, categories, currency, exchangeRates,
         >
           <Text style={[styles.filterText, filter === 'Hepsi' && styles.activeAllText]}>{t('all')}</Text>
         </Pressable>
-        {categories.map((category) => {
+        {displayCategories.map((category) => {
           const isActive = filter === category.name;
           return (
             <Pressable
@@ -106,13 +110,7 @@ export function TransactionList({ expenses, categories, currency, exchangeRates,
           </View>
         ) : (
           filteredExpenses.map((expense) => {
-            const category = categories.find((item) => item.name === expense.category) ?? {
-              id: 'fallback',
-              name: expense.category,
-              color: '#64748b',
-              softColor: 'rgba(100, 116, 139, 0.16)',
-              icon: 'briefcase',
-            };
+            const category = resolveCategoryDisplay(expense.category, categories);
             const expenseCurrency = getExpenseCurrency(expense);
             const expenseEntrySymbol = CURRENCIES.find((item) => item.code === expenseCurrency)?.symbol ?? '₺';
 

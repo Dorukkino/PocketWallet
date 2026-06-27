@@ -90,7 +90,7 @@ const translations = {
     marketAdviceSimulationBeforeGain: ' oranında ek getiri sağlayarak ',
     marketAdviceSimulationAfterGain: ' daha fazla birikim elde edebilirdiniz.',
     marketAdviceDisclaimer:
-      'Burada yer alan bilgiler simülasyon amaçlı olup, yatırım tavsiyesi niteliği taşımamaktadır.',
+      'Burada yer alan bilgiler öneri amaçlı olup, yatırım tavsiyesi niteliği taşımamaktadır.',
     fullNamePlaceholder: 'Ad Soyad',
     iconSelect: 'İkon Seç',
     incomeSavedAsCurrency: 'Gelir {currency} olarak kaydedilir.',
@@ -234,7 +234,7 @@ const translations = {
     marketAdviceSimulationBeforeGain: ', accumulating an extra ',
     marketAdviceSimulationAfterGain: ' by the end of the period.',
     marketAdviceDisclaimer:
-      'The information provided herein is for simulation purposes only and does not constitute investment advice.',
+      'The information provided herein is for recommendation purposes only and does not constitute investment advice.',
     fullNamePlaceholder: 'Full Name',
     iconSelect: 'Select Icon',
     incomeSavedAsCurrency: 'Income is saved as {currency}.',

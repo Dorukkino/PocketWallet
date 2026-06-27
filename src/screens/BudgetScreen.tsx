@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -33,6 +33,7 @@ import { useMarketAdvice } from '../hooks/useMarketAdvice';
 import { useBudget } from '../hooks/useBudget';
 import { TranslationKey, useI18n } from '../i18n';
 import { formatCurrencyValue } from '../lib/currency';
+import { recordMarketAdviceViewed } from '../lib/rateApp';
 import { removeBudgetSnapshot } from '../lib/storage';
 import { supabase } from '../lib/supabase';
 import type { BudgetPeriod } from '../types/budget';
@@ -94,6 +95,20 @@ export function BudgetScreen({ session, isGuest = false, onExitGuest }: Props) {
     error: marketAdviceError,
     refreshAdvice: refreshMarketAdvice,
   } = useMarketAdvice(budget.totalExpense, budget.selectedPeriod.monthKey, showMarketAdvice);
+
+  useEffect(() => {
+    if (!showMarketAdvice || isMarketAdviceLoading || !marketInvestmentAdvice) {
+      return;
+    }
+
+    void recordMarketAdviceViewed(budget.selectedPeriod.monthKey);
+  }, [
+    budget.selectedPeriod.monthKey,
+    isMarketAdviceLoading,
+    marketInvestmentAdvice,
+    showMarketAdvice,
+  ]);
+
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
   const [isMonthPickerVisible, setIsMonthPickerVisible] = useState(false);

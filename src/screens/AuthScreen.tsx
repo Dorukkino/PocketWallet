@@ -16,7 +16,6 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { LockKeyhole, Mail, UserRound } from 'lucide-react-native';
 
-import { AppLogo } from '../components/AppLogo';
 import { LanguageToggle } from '../components/LanguageToggle';
 import { useI18n } from '../i18n';
 import { authRedirectUrl } from '../lib/authLinking';
@@ -126,7 +125,6 @@ export function AuthScreen({ onContinueAsGuest }: Props) {
         >
           <View style={styles.card}>
         <LanguageToggle style={styles.languageToggle} />
-        <AppLogo size={68} style={styles.logo} />
         <Text style={styles.title}>PocketWallet</Text>
         <Text style={styles.subtitle}>{t('authSubtitle')}</Text>
 
@@ -254,9 +252,6 @@ const styles = StyleSheet.create({
   languageToggle: {
     alignSelf: 'flex-end',
     marginBottom: 10,
-  },
-  logo: {
-    marginBottom: 18,
   },
   title: {
     color: '#f8fafc',

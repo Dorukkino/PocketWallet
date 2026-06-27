@@ -5,6 +5,7 @@ import { CATEGORIES, CATEGORY_COLORS, DEFAULT_EXPENSES, resolveCategoryDisplay }
 import { useI18n } from '../i18n';
 import { withTimeout } from '../lib/async';
 import { convertToTry, expenseAmountInTry, getExpenseCurrency } from '../lib/currency';
+import { recordSuccessfulAction } from '../lib/rateApp';
 import { readBudgetSnapshot, writeBudgetSnapshot } from '../lib/storage';
 import { supabase } from '../lib/supabase';
 import type {
@@ -477,6 +478,7 @@ export function useBudget(session: Session | null, exchangeRates: ExchangeRates)
       setExpenses((current) => [newExpense, ...current]);
 
       if (!userId) {
+        void recordSuccessfulAction();
         return;
       }
 
@@ -497,6 +499,7 @@ export function useBudget(session: Session | null, exchangeRates: ExchangeRates)
       }
 
       setExpenses((current) => current.map((item) => (item.id === newExpense.id ? { ...item, pending: false } : item)));
+      void recordSuccessfulAction();
     },
     [addError, clearError, t, userId],
   );

@@ -1,6 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
+import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
-import { Linking, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Linking, StyleSheet, View } from 'react-native';
 import type { Session } from '@supabase/supabase-js';
 
 import { useAdmin } from './src/hooks/useAdmin';
@@ -15,17 +16,24 @@ import { LanguageProvider } from './src/i18n';
 
 const BOOT_SESSION_TIMEOUT_MS = 7000;
 
+SplashScreen.setOptions({
+  duration: 200,
+  fade: true,
+});
+
+SplashScreen.preventAutoHideAsync().catch(() => undefined);
+
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [isGuest, setIsGuest] = useState(false);
-  const [isBooting, setIsBooting] = useState(true);
+  const [isAppReady, setIsAppReady] = useState(false);
   const admin = useAdmin(session);
 
   useEffect(() => {
-    if (!isBooting) {
+    if (isAppReady) {
       void initializeAds();
     }
-  }, [isBooting]);
+  }, [isAppReady]);
 
   useEffect(() => {
     const handleAuthUrl = async (url: string | null) => {
@@ -58,8 +66,11 @@ export default function App() {
 
     async function restoreSession() {
       if (!isSupabaseConfigured) {
-        setSession(null);
-        setIsBooting(false);
+        if (mounted) {
+          setSession(null);
+          setIsAppReady(true);
+          await SplashScreen.hideAsync();
+        }
         return;
       }
 
@@ -83,7 +94,8 @@ export default function App() {
         }
       } finally {
         if (mounted) {
-          setIsBooting(false);
+          setIsAppReady(true);
+          await SplashScreen.hideAsync();
         }
       }
     }
@@ -107,13 +119,12 @@ export default function App() {
     };
   }, []);
 
-  if (isBooting) {
+  if (!isAppReady) {
     return (
-      <LanguageProvider>
-        <View style={styles.bootScreen}>
-          <StatusBar style="light" />
-        </View>
-      </LanguageProvider>
+      <View style={styles.loadingScreen}>
+        <ActivityIndicator color="#34d399" size="large" />
+        <StatusBar style="light" />
+      </View>
     );
   }
 
@@ -143,8 +154,10 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  bootScreen: {
+  loadingScreen: {
+    alignItems: 'center',
     backgroundColor: '#020617',
     flex: 1,
+    justifyContent: 'center',
   },
 });

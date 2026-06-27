@@ -8,7 +8,8 @@
     "userInterfaceStyle": "dark",
     "scheme": "pocketwallet",
     "splash": {
-      "backgroundColor": "#020617"
+      "backgroundColor": "#020617",
+      "resizeMode": "contain"
     },
     "ios": {
       "supportsTablet": false,
@@ -35,6 +36,12 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#020617"
+        }
+      ],
       [
         "react-native-google-mobile-ads",
         {

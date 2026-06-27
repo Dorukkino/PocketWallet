@@ -31,18 +31,32 @@ const ASSET_THEMES: Record<string, AssetVisualTheme> = {
     glow: 'rgba(251, 191, 36, 0.12)',
     icon: Coins,
   },
-  SI: {
-    accent: '#CBD5E1',
-    accentMuted: 'rgba(203, 213, 225, 0.14)',
-    border: 'rgba(203, 213, 225, 0.28)',
-    glow: 'rgba(203, 213, 225, 0.1)',
+  'USD/TRY': {
+    accent: '#22C55E',
+    accentMuted: 'rgba(34, 197, 94, 0.14)',
+    border: 'rgba(34, 197, 94, 0.28)',
+    glow: 'rgba(34, 197, 94, 0.1)',
+    icon: Coins,
+  },
+  'EUR/TRY': {
+    accent: '#3B82F6',
+    accentMuted: 'rgba(59, 130, 246, 0.14)',
+    border: 'rgba(59, 130, 246, 0.28)',
+    glow: 'rgba(59, 130, 246, 0.1)',
+    icon: Coins,
+  },
+  SPY: {
+    accent: '#A78BFA',
+    accentMuted: 'rgba(167, 139, 250, 0.14)',
+    border: 'rgba(167, 139, 250, 0.28)',
+    glow: 'rgba(167, 139, 250, 0.1)',
     icon: Sparkles,
   },
-  XAG: {
-    accent: '#CBD5E1',
-    accentMuted: 'rgba(203, 213, 225, 0.14)',
-    border: 'rgba(203, 213, 225, 0.28)',
-    glow: 'rgba(203, 213, 225, 0.1)',
+  QQQ: {
+    accent: '#38BDF8',
+    accentMuted: 'rgba(56, 189, 248, 0.14)',
+    border: 'rgba(56, 189, 248, 0.28)',
+    glow: 'rgba(56, 189, 248, 0.1)',
     icon: Sparkles,
   },
 };
@@ -53,9 +67,10 @@ const NAME_THEMES: Record<string, string> = {
   altın: 'XAU',
   altin: 'XAU',
   gold: 'XAU',
-  gümüş: 'SI',
-  gumus: 'SI',
-  silver: 'SI',
+  dolar: 'USD/TRY',
+  euro: 'EUR/TRY',
+  's&p 500': 'SPY',
+  nasdaq: 'QQQ',
 };
 
 const DEFAULT_THEME: AssetVisualTheme = {

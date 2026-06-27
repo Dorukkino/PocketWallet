@@ -5,7 +5,7 @@ import { MissingEnvError, serverSecrets } from '../_shared/env.ts';
 
 const TWELVE_DATA_BASE_URL = 'https://api.twelvedata.com';
 const LOOKBACK_DAYS = 30;
-const REQUEST_DELAY_MS = 2500;
+const REQUEST_DELAY_MS = 3000;
 
 const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -16,7 +16,7 @@ type TrackedAsset = {
   twelveDataSymbol: string;
   assetName: string;
   assetSymbol: string;
-  assetType: 'commodity' | 'crypto';
+  assetType: 'commodity' | 'crypto' | 'forex' | 'stock';
 };
 
 const TRACKED_ASSETS: TrackedAsset[] = [
@@ -39,12 +39,32 @@ const TRACKED_ASSETS: TrackedAsset[] = [
     assetType: 'commodity',
   },
   {
-    twelveDataSymbol: 'SI',
-    assetName: 'Gümüş',
-    assetSymbol: 'SI',
-    assetType: 'commodity',
+    twelveDataSymbol: 'USD/TRY',
+    assetName: 'Dolar',
+    assetSymbol: 'USD/TRY',
+    assetType: 'forex',
+  },
+  {
+    twelveDataSymbol: 'EUR/TRY',
+    assetName: 'Euro',
+    assetSymbol: 'EUR/TRY',
+    assetType: 'forex',
+  },
+  {
+    twelveDataSymbol: 'SPY',
+    assetName: 'S&P 500',
+    assetSymbol: 'SPY',
+    assetType: 'stock',
+  },
+  {
+    twelveDataSymbol: 'QQQ',
+    assetName: 'Nasdaq',
+    assetSymbol: 'QQQ',
+    assetType: 'stock',
   },
 ];
+
+const REMOVED_ASSET_SYMBOLS = ['SI', 'XAG'];
 
 type TimeSeriesValue = {
   datetime: string;
@@ -80,13 +100,63 @@ const getCurrentPeriod = (date = new Date()) => {
   return `${year}-${month}`;
 };
 
-const isServiceRoleRequest = (req: Request, serviceRoleKey: string) => {
+const getProjectRef = (supabaseUrl: string) => {
+  try {
+    return new URL(supabaseUrl).hostname.split('.')[0] ?? null;
+  } catch {
+    return null;
+  }
+};
+
+const decodeJwtPayload = (token: string): Record<string, unknown> | null => {
+  const parts = token.split('.');
+  if (parts.length !== 3) {
+    return null;
+  }
+
+  try {
+    const payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = payload + '='.repeat((4 - (payload.length % 4)) % 4);
+    return JSON.parse(atob(padded)) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+};
+
+const isServiceRoleRequest = (req: Request, serviceRoleKey: string, supabaseUrl: string) => {
   const authHeader = req.headers.get('Authorization');
   if (!authHeader?.startsWith('Bearer ')) {
     return false;
   }
 
-  return authHeader.slice('Bearer '.length) === serviceRoleKey;
+  const token = authHeader.slice('Bearer '.length).trim();
+  if (!token) {
+    return false;
+  }
+
+  if (token === serviceRoleKey) {
+    return true;
+  }
+
+  const payload = decodeJwtPayload(token);
+  if (!payload || payload.role !== 'service_role') {
+    return false;
+  }
+
+  const projectRef = getProjectRef(supabaseUrl);
+  if (!projectRef) {
+    return false;
+  }
+
+  if (typeof payload.ref === 'string') {
+    return payload.ref === projectRef;
+  }
+
+  if (typeof payload.iss === 'string') {
+    return payload.iss.includes(projectRef);
+  }
+
+  return false;
 };
 
 const roundChangePct = (value: number) => Math.round(value * 10_000) / 10_000;
@@ -141,19 +211,22 @@ Deno.serve(async (req) => {
 
   try {
     const serviceRoleKey = serverSecrets.supabaseServiceRoleKey;
+    const supabaseUrl = serverSecrets.supabaseUrl;
 
-    if (!isServiceRoleRequest(req, serviceRoleKey)) {
+    if (!isServiceRoleRequest(req, serviceRoleKey, supabaseUrl)) {
       return jsonResponse(401, { error: 'Unauthorized.' });
     }
 
     const apiKey = serverSecrets.twelveDataApiKey;
     const period = getCurrentPeriod();
-    const adminClient = createClient(serverSecrets.supabaseUrl, serviceRoleKey, {
+    const adminClient = createClient(supabaseUrl, serviceRoleKey, {
       auth: {
         autoRefreshToken: false,
         persistSession: false,
       },
     });
+
+    await adminClient.from('market_performances').delete().in('asset_symbol', REMOVED_ASSET_SYMBOLS);
 
     const performanceRows: MarketPerformanceUpsertRow[] = [];
 
@@ -181,6 +254,22 @@ Deno.serve(async (req) => {
 
     if (error) {
       return jsonResponse(500, { error: 'Market performances could not be saved.' });
+    }
+
+    const trackedSymbols = new Set(TRACKED_ASSETS.map((asset) => asset.assetSymbol));
+    const { data: existingRows, error: existingRowsError } = await adminClient
+      .from('market_performances')
+      .select('asset_symbol')
+      .eq('period', period);
+
+    if (!existingRowsError && existingRows?.length) {
+      const obsoleteSymbols = existingRows
+        .map((row) => row.asset_symbol)
+        .filter((symbol) => !trackedSymbols.has(symbol));
+
+      if (obsoleteSymbols.length > 0) {
+        await adminClient.from('market_performances').delete().eq('period', period).in('asset_symbol', obsoleteSymbols);
+      }
     }
 
     return jsonResponse(200, {

@@ -13,7 +13,10 @@ const TRACKED_ASSETS = [
   { twelveDataSymbol: 'BTC/USD', assetSymbol: 'BTC' },
   { twelveDataSymbol: 'ETH/USD', assetSymbol: 'ETH' },
   { twelveDataSymbol: 'XAU/USD', assetSymbol: 'XAU' },
-  { twelveDataSymbol: 'SI', assetSymbol: 'SI' },
+  { twelveDataSymbol: 'USD/TRY', assetSymbol: 'USD/TRY' },
+  { twelveDataSymbol: 'EUR/TRY', assetSymbol: 'EUR/TRY' },
+  { twelveDataSymbol: 'SPY', assetSymbol: 'SPY' },
+  { twelveDataSymbol: 'QQQ', assetSymbol: 'QQQ' },
 ];
 
 const LOOKBACK_DAYS = 30;

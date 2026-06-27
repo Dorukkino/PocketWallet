@@ -1,4 +1,4 @@
-export type MarketAssetType = 'commodity' | 'crypto' | 'stock';
+export type MarketAssetType = 'commodity' | 'crypto' | 'forex' | 'stock';
 
 export type MarketPerformance = {
   id: string;

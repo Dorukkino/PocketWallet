@@ -53,6 +53,7 @@ Deno.serve(async (req) => {
     const deleteResults = await Promise.all([
       adminClient.from('expenses').delete().eq('user_id', userId),
       adminClient.from('expense_categories').delete().eq('user_id', userId),
+      adminClient.from('monthly_incomes').delete().eq('user_id', userId),
       adminClient.from('user_settings').delete().eq('user_id', userId),
       adminClient.from('users').delete().eq('id', userId),
     ]);

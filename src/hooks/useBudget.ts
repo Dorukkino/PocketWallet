@@ -125,6 +125,13 @@ const fromRemoteCategory = (row: {
   isDefault: row.is_default,
 });
 
+const fromRemoteMonthlyIncomes = (
+  rows: Array<{ month_key: string; amount: number | string; currency?: CurrencyCode | null }>,
+): Record<string, MonthlyIncome> =>
+  Object.fromEntries(
+    rows.map((row) => [row.month_key, { amount: Number(row.amount), currency: row.currency ?? 'TRY' }]),
+  );
+
 const colorToSoftColor = (color: string) => {
   const hex = color.replace('#', '');
   const red = parseInt(hex.slice(0, 2), 16);
@@ -264,7 +271,7 @@ export function useBudget(session: Session | null, exchangeRates: ExchangeRates)
         }
 
         setIsSyncing(true);
-        const [settingsResult, expensesResult, categoriesResult] = await withTimeout(
+        const [settingsResult, expensesResult, categoriesResult, incomesResult] = await withTimeout(
           Promise.all([
             supabase.from('user_settings').select('monthly_income, currency').eq('user_id', userId).maybeSingle(),
             supabase
@@ -279,6 +286,7 @@ export function useBudget(session: Session | null, exchangeRates: ExchangeRates)
               .eq('user_id', userId)
               .order('is_default', { ascending: false })
               .order('created_at', { ascending: true }),
+            supabase.from('monthly_incomes').select('month_key, amount, currency').eq('user_id', userId),
           ]),
           BUDGET_REQUEST_TIMEOUT_MS,
           'Budget data request timed out.',
@@ -288,17 +296,19 @@ export function useBudget(session: Session | null, exchangeRates: ExchangeRates)
           return;
         }
 
-        if (settingsResult.error || expensesResult.error || categoriesResult.error) {
+        if (settingsResult.error || expensesResult.error || categoriesResult.error || incomesResult.error) {
           addError('general', t('remoteFetchFailed'));
         } else {
           const remoteCurrency = settingsResult.data?.currency as CurrencyCode | undefined;
           const remoteExpenses = expensesResult.data?.map(fromRemoteExpense) ?? [];
           const remoteCategories = categoriesResult.data?.map(fromRemoteCategory) ?? [];
+          const remoteIncomes = fromRemoteMonthlyIncomes(incomesResult.data ?? []);
 
           if (remoteCurrency) {
             setCurrencyState(remoteCurrency);
           }
           setExpenses(normalizeExpenses(remoteExpenses));
+          setMonthlyIncomes(remoteIncomes);
           if (remoteCategories.length > 0) {
             setCategories(remoteCategories);
           } else {
@@ -362,6 +372,129 @@ export function useBudget(session: Session | null, exchangeRates: ExchangeRates)
       });
     }
   }, [addError, isHydrating, snapshot, t, userId]);
+
+  useEffect(() => {
+    if (!userId || isHydrating) {
+      return;
+    }
+
+    const applyRemoteIncomeRow = (row: { month_key: string; amount: number | string; currency?: CurrencyCode | null }) => {
+      setMonthlyIncomes((current) => ({
+        ...current,
+        [row.month_key]: { amount: Number(row.amount), currency: row.currency ?? 'TRY' },
+      }));
+    };
+
+    const channel = supabase
+      .channel(`budget-sync-${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'monthly_incomes',
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          applyRemoteIncomeRow(payload.new as { month_key: string; amount: number | string; currency?: CurrencyCode | null });
+        },
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'monthly_incomes',
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          applyRemoteIncomeRow(payload.new as { month_key: string; amount: number | string; currency?: CurrencyCode | null });
+        },
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'monthly_incomes',
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          const monthKey = (payload.old as { month_key?: string }).month_key;
+          if (!monthKey) {
+            return;
+          }
+
+          setMonthlyIncomes((current) => {
+            const next = { ...current };
+            delete next[monthKey];
+            return next;
+          });
+        },
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'expenses',
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          const expense = fromRemoteExpense(
+            payload.new as Parameters<typeof fromRemoteExpense>[0],
+          );
+          setExpenses((current) => {
+            if (current.some((item) => item.id === expense.id)) {
+              return current;
+            }
+
+            return normalizeExpenses([expense, ...current]);
+          });
+        },
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'expenses',
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          const expense = fromRemoteExpense(
+            payload.new as Parameters<typeof fromRemoteExpense>[0],
+          );
+          setExpenses((current) =>
+            normalizeExpenses(
+              current.map((item) => (item.id === expense.id ? { ...expense, pending: false } : item)),
+            ),
+          );
+        },
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'expenses',
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          const expenseId = (payload.old as { id?: string }).id;
+          if (!expenseId) {
+            return;
+          }
+
+          setExpenses((current) => current.filter((item) => item.id !== expenseId));
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [isHydrating, userId]);
 
   const selectedPeriod = useMemo(
     () => createBudgetPeriod(selectedMonthKey, budgetStartDate, locale),
@@ -435,8 +568,26 @@ export function useBudget(session: Session | null, exchangeRates: ExchangeRates)
         ...current,
         [selectedMonthKey]: { amount: nextIncome, currency: incomeCurrency },
       }));
+
+      if (!userId) {
+        return;
+      }
+
+      const { error: upsertError } = await supabase.from('monthly_incomes').upsert(
+        {
+          user_id: userId,
+          month_key: selectedMonthKey,
+          amount: nextIncome,
+          currency: incomeCurrency,
+        },
+        { onConflict: 'user_id,month_key' },
+      );
+
+      if (upsertError) {
+        addError('general', t('incomeSaveFailed'));
+      }
     },
-    [selectedMonthKey],
+    [addError, selectedMonthKey, t, userId],
   );
 
   const updateCurrency = useCallback(
@@ -628,12 +779,12 @@ export function useBudget(session: Session | null, exchangeRates: ExchangeRates)
     clearError();
 
     try {
-      const [settingsResult, expensesResult, categoriesResult] = await withTimeout(
+      const [settingsResult, expensesResult, categoriesResult, incomesResult] = await withTimeout(
         Promise.all([
           supabase.from('user_settings').select('monthly_income, currency').eq('user_id', userId).maybeSingle(),
           supabase
             .from('expenses')
-            .select('id, title, amount, category, spent_on, created_at')
+            .select('id, title, amount, currency, category, spent_on, created_at')
             .eq('user_id', userId)
             .order('spent_on', { ascending: false })
             .order('created_at', { ascending: false }),
@@ -643,12 +794,13 @@ export function useBudget(session: Session | null, exchangeRates: ExchangeRates)
             .eq('user_id', userId)
             .order('is_default', { ascending: false })
             .order('created_at', { ascending: true }),
+          supabase.from('monthly_incomes').select('month_key, amount, currency').eq('user_id', userId),
         ]),
         BUDGET_REQUEST_TIMEOUT_MS,
         'Budget refresh timed out.',
       );
 
-      if (settingsResult.error || expensesResult.error || categoriesResult.error) {
+      if (settingsResult.error || expensesResult.error || categoriesResult.error || incomesResult.error) {
         addError('general', t('remoteRefreshFailed'));
         return;
       }
@@ -659,6 +811,7 @@ export function useBudget(session: Session | null, exchangeRates: ExchangeRates)
       }
 
       setExpenses(normalizeExpenses(expensesResult.data?.map(fromRemoteExpense) ?? []));
+      setMonthlyIncomes(fromRemoteMonthlyIncomes(incomesResult.data ?? []));
 
       const remoteCategories = categoriesResult.data?.map(fromRemoteCategory) ?? [];
       if (remoteCategories.length > 0) {

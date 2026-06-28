@@ -2,12 +2,19 @@ import 'react-native-get-random-values';
 import 'react-native-url-polyfill/auto';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-import { publicEnv } from './env';
+const PRODUCTION_SUPABASE_URL = 'https://mitrxxvwccjzsvcdptdi.supabase.co';
+const PRODUCTION_SUPABASE_ANON_KEY = 'sb_publishable_xRoapJcIuumULBDNG6sRBw_71sPisBb';
 
-const fallbackSupabaseUrl = 'https://placeholder.supabase.co';
-const fallbackSupabaseKey = 'missing-supabase-publishable-key';
+const authOptions = {
+  auth: {
+    storage: AsyncStorage,
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: false,
+  },
+} as const;
 
 const normalizeSupabaseUrl = (value?: string | null) => {
   try {
@@ -18,17 +25,28 @@ const normalizeSupabaseUrl = (value?: string | null) => {
   }
 };
 
-const supabaseUrl = normalizeSupabaseUrl(publicEnv.supabaseUrl);
-const supabaseKey = publicEnv.supabasePublishableKey;
+const supabaseUrl =
+  normalizeSupabaseUrl(process.env.EXPO_PUBLIC_SUPABASE_URL) ?? PRODUCTION_SUPABASE_URL;
 
-export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseKey);
+const supabaseAnonKey =
+  process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim() ||
+  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() ||
+  PRODUCTION_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('Supabase credentials are completely missing!');
+}
+
+export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 export const supabaseConfigurationError = isSupabaseConfigured ? null : 'Supabase environment variables are missing.';
 
-export const supabase = createClient(supabaseUrl ?? fallbackSupabaseUrl, supabaseKey ?? fallbackSupabaseKey, {
-  auth: {
-    storage: AsyncStorage,
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: false,
-  },
-});
+let supabase: SupabaseClient;
+
+try {
+  supabase = createClient(supabaseUrl, supabaseAnonKey, authOptions);
+} catch (error) {
+  console.error('Failed to initialize Supabase client:', error);
+  supabase = createClient(PRODUCTION_SUPABASE_URL, PRODUCTION_SUPABASE_ANON_KEY, authOptions);
+}
+
+export { supabase };

@@ -1,9 +1,14 @@
 import { StyleSheet, View } from 'react-native';
 import { BannerAd, BannerAdSize, TestIds } from 'react-native-google-mobile-ads';
 
-import { publicEnv } from '../lib/env';
+const PRODUCTION_IOS_BANNER_AD_UNIT_ID = 'ca-app-pub-9076740570868318/6405353759';
 
-const bannerAdUnitId = __DEV__ ? TestIds.BANNER : publicEnv.admobIosBannerAdUnitId || TestIds.BANNER;
+const productionBannerAdUnitId =
+  process.env.EXPO_PUBLIC_ADMOB_IOS_BANNER_AD_UNIT_ID?.trim() ||
+  process.env.EXPO_PUBLIC_ADMOB_BANNER_ID?.trim() ||
+  PRODUCTION_IOS_BANNER_AD_UNIT_ID;
+
+const bannerAdUnitId = __DEV__ ? TestIds.BANNER : productionBannerAdUnitId;
 
 export function AdBanner() {
   return (

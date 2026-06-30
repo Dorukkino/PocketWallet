@@ -52,8 +52,8 @@ export const CATEGORIES: ExpenseCategory[] = [
   {
     id: 'default-diger',
     name: 'Diğer',
-    color: '#64748b',
-    softColor: 'rgba(100, 116, 139, 0.16)',
+    color: '#6366f1',
+    softColor: 'rgba(99, 102, 241, 0.14)',
     icon: 'briefcase',
     isDefault: true,
   },
@@ -124,15 +124,44 @@ const ARCHIVED_CATEGORY_STYLE = {
   icon: 'briefcase',
 } as const;
 
+const defaultCategoriesByName = new Map(CATEGORIES.map((category) => [category.name, category]));
+
+export const applyDefaultCategoryStyles = (categories: ExpenseCategory[]): ExpenseCategory[] =>
+  categories.map((category) => {
+    const canonicalDefault = defaultCategoriesByName.get(category.name);
+    if (!canonicalDefault) {
+      return category;
+    }
+
+    return {
+      ...category,
+      color: canonicalDefault.color,
+      softColor: canonicalDefault.softColor,
+      icon: canonicalDefault.icon,
+      isDefault: true,
+    };
+  });
+
 export const resolveCategoryDisplay = (
   categoryName: string,
   categories: ExpenseCategory[],
-): ExpenseCategory =>
-  categories.find((category) => category.name === categoryName) ?? {
+): ExpenseCategory => {
+  const matchedCategory = categories.find((category) => category.name === categoryName);
+  if (matchedCategory) {
+    return matchedCategory;
+  }
+
+  const canonicalDefault = defaultCategoriesByName.get(categoryName);
+  if (canonicalDefault) {
+    return { ...canonicalDefault };
+  }
+
+  return {
     id: `archived-${categoryName}`,
     name: categoryName,
     ...ARCHIVED_CATEGORY_STYLE,
   };
+};
 
 export const mergeCategoriesWithExpenses = (
   categories: ExpenseCategory[],

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 
-import { CATEGORIES, CATEGORY_COLORS, DEFAULT_EXPENSES, resolveCategoryDisplay } from '../constants/categories';
+import { CATEGORIES, CATEGORY_COLORS, DEFAULT_EXPENSES, applyDefaultCategoryStyles, resolveCategoryDisplay } from '../constants/categories';
 import { useI18n } from '../i18n';
 import { withTimeout } from '../lib/async';
 import { convertToTry, expenseAmountInTry, getExpenseCurrency } from '../lib/currency';
@@ -260,7 +260,7 @@ export function useBudget(session: Session | null, exchangeRates: ExchangeRates)
             setBudgetStartDate(fallbackBudgetStartDate);
           }
           if (cached.categories?.length) {
-            setCategories(cached.categories);
+            setCategories(applyDefaultCategoryStyles(cached.categories));
           }
         } else if (mounted) {
           setBudgetStartDate(fallbackBudgetStartDate);
@@ -310,7 +310,7 @@ export function useBudget(session: Session | null, exchangeRates: ExchangeRates)
           setExpenses(normalizeExpenses(remoteExpenses));
           setMonthlyIncomes(remoteIncomes);
           if (remoteCategories.length > 0) {
-            setCategories(remoteCategories);
+            setCategories(applyDefaultCategoryStyles(remoteCategories));
           } else {
             await withTimeout(
               Promise.all(
@@ -815,7 +815,7 @@ export function useBudget(session: Session | null, exchangeRates: ExchangeRates)
 
       const remoteCategories = categoriesResult.data?.map(fromRemoteCategory) ?? [];
       if (remoteCategories.length > 0) {
-        setCategories(remoteCategories);
+        setCategories(applyDefaultCategoryStyles(remoteCategories));
       }
     } catch (error) {
       if (__DEV__) {

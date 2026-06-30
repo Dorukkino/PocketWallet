@@ -2,10 +2,16 @@ import { useCallback, useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 
 import { useI18n } from '../i18n';
-import { fetchExchangeRates, getCachedExchangeRates, getFallbackExchangeRates } from '../lib/currency';
+import {
+  fetchExchangeRates,
+  getCachedExchangeRates,
+  getFallbackExchangeRates,
+  isExchangeRatesExpired,
+} from '../lib/currency';
 import type { ExchangeRates } from '../types/budget';
 
 const EXCHANGE_RATE_RETRY_INTERVAL_MS = 30 * 60 * 1000;
+const STALE_EXCHANGE_RATE_RETRY_INTERVAL_MS = 5 * 60 * 1000;
 
 export function useExchangeRates() {
   const { t } = useI18n();
@@ -16,9 +22,14 @@ export function useExchangeRates() {
   const refreshRates = useCallback(async () => {
     setIsLoading(true);
     setError(null);
+
     const cachedRates = await getCachedExchangeRates().catch(() => null);
-    if (cachedRates) {
+    const cachedRatesAreFresh = cachedRates ? !isExchangeRatesExpired(cachedRates) : false;
+
+    if (cachedRatesAreFresh) {
       setRates(cachedRates);
+    } else if (cachedRates) {
+      setRates({ ...cachedRates, isStale: true });
     }
 
     try {
@@ -26,7 +37,11 @@ export function useExchangeRates() {
       setRates(freshRates);
       setError(null);
     } catch {
-      setRates((currentRates) => ({ ...(cachedRates ?? currentRates), isStale: true }));
+      if (cachedRatesAreFresh) {
+        setRates({ ...cachedRates, isStale: true });
+      } else {
+        setRates((currentRates) => ({ ...(cachedRates ?? currentRates), isStale: true }));
+      }
       setError(t('currencyFetchFailed'));
     } finally {
       setIsLoading(false);
@@ -34,38 +49,8 @@ export function useExchangeRates() {
   }, [t]);
 
   useEffect(() => {
-    let mounted = true;
-
-    async function loadRates() {
-      const cachedRates = await getCachedExchangeRates().catch(() => null);
-      if (mounted && cachedRates) {
-        setRates(cachedRates);
-      }
-
-      try {
-        const freshRates = await fetchExchangeRates();
-        if (mounted) {
-          setRates(freshRates);
-          setError(null);
-        }
-      } catch {
-        if (mounted) {
-          setRates((currentRates) => ({ ...(cachedRates ?? currentRates), isStale: true }));
-          setError(t('currencyFetchFailed'));
-        }
-      } finally {
-        if (mounted) {
-          setIsLoading(false);
-        }
-      }
-    }
-
-    loadRates();
-
-    return () => {
-      mounted = false;
-    };
-  }, [t]);
+    void refreshRates();
+  }, [refreshRates]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (status) => {
@@ -73,15 +58,19 @@ export function useExchangeRates() {
         void refreshRates();
       }
     });
-    const retryInterval = setInterval(() => {
-      void refreshRates();
-    }, EXCHANGE_RATE_RETRY_INTERVAL_MS);
+
+    const retryInterval = setInterval(
+      () => {
+        void refreshRates();
+      },
+      rates.isStale ? STALE_EXCHANGE_RATE_RETRY_INTERVAL_MS : EXCHANGE_RATE_RETRY_INTERVAL_MS,
+    );
 
     return () => {
       subscription.remove();
       clearInterval(retryInterval);
     };
-  }, [refreshRates]);
+  }, [rates.isStale, refreshRates]);
 
   return { rates, isLoading, error, refreshRates };
-}
+};

@@ -36,4 +36,5 @@ export type MarketInvestmentAdvice = {
   changePct: number;
   savingsAmount: number;
   netGain: number;
+  updatedAt: string;
 };

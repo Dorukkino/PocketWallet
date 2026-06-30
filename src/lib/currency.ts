@@ -5,8 +5,9 @@ import { withTimeout } from './async';
 import type { CurrencyCode, ExchangeRates } from '../types/budget';
 
 const CACHE_KEY = 'pocketwallet_exchange_rates_v1';
-const RATE_API_URL = 'https://api.frankfurter.app/latest?from=TRY&to=USD,EUR,GBP';
-const MAX_EXCHANGE_RATE_AGE_MS = 2 * 24 * 60 * 60 * 1000;
+const RATE_API_BASE_URL = 'https://api.frankfurter.app/latest?from=TRY&to=USD,EUR,GBP';
+const MAX_EXCHANGE_RATE_AGE_MS = 6 * 60 * 60 * 1000;
+const MAX_EXCHANGE_SOURCE_DATE_AGE_MS = 3 * 24 * 60 * 60 * 1000;
 const EXCHANGE_RATE_TIMEOUT_MS = 7000;
 const EXCHANGE_RATE_CACHE_TIMEOUT_MS = 3000;
 
@@ -22,6 +23,17 @@ const fallbackRates: ExchangeRates = {
   fetchedAt: new Date().toISOString(),
   isStale: true,
 };
+
+const buildRateApiUrl = () => `${RATE_API_BASE_URL}&_=${Date.now()}`;
+
+export function isExchangeRatesSourceDateStale(sourceDate: string, now = Date.now()) {
+  const rateDate = new Date(`${sourceDate}T12:00:00`).getTime();
+  if (!Number.isFinite(rateDate)) {
+    return true;
+  }
+
+  return now - rateDate > MAX_EXCHANGE_SOURCE_DATE_AGE_MS;
+}
 
 export async function getCachedExchangeRates() {
   const raw = await withTimeout(
@@ -43,7 +55,10 @@ export async function getCachedExchangeRates() {
 
 export function isExchangeRatesExpired(rates: ExchangeRates, now = Date.now()) {
   const fetchedAt = new Date(rates.fetchedAt).getTime();
-  return !Number.isFinite(fetchedAt) || now - fetchedAt > MAX_EXCHANGE_RATE_AGE_MS;
+  const fetchedAtExpired = !Number.isFinite(fetchedAt) || now - fetchedAt > MAX_EXCHANGE_RATE_AGE_MS;
+  const sourceDateExpired = isExchangeRatesSourceDateStale(rates.sourceDate, now);
+
+  return fetchedAtExpired || sourceDateExpired;
 }
 
 export function withExchangeRatesFreshness(rates: ExchangeRates) {
@@ -54,7 +69,17 @@ export function withExchangeRatesFreshness(rates: ExchangeRates) {
 }
 
 export async function fetchExchangeRates(): Promise<ExchangeRates> {
-  const response = await withTimeout(fetch(RATE_API_URL), EXCHANGE_RATE_TIMEOUT_MS, 'Exchange rate request timed out.');
+  const response = await withTimeout(
+    fetch(buildRateApiUrl(), {
+      cache: 'no-store',
+      headers: {
+        'Cache-Control': 'no-cache',
+        Pragma: 'no-cache',
+      },
+    }),
+    EXCHANGE_RATE_TIMEOUT_MS,
+    'Exchange rate request timed out.',
+  );
 
   if (!response.ok) {
     throw new Error('Exchange rate request failed.');

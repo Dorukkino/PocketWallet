@@ -87,6 +87,7 @@ export function BudgetScreen({ session, isGuest = false, onExitGuest }: Props) {
   const { locale, t } = useI18n();
   const exchange = useExchangeRates();
   const budget = useBudget(session, exchange.rates);
+  const exchangeRatesSignal = `${exchange.rates.sourceDate}:${exchange.rates.fetchedAt}:${exchange.rates.isStale}`;
   const showMarketAdvice =
     !(budget.incomeInTry === 0 && budget.totalExpense === 0) && budget.remainingBalance >= 0;
   const {
@@ -94,7 +95,7 @@ export function BudgetScreen({ session, isGuest = false, onExitGuest }: Props) {
     isLoading: isMarketAdviceLoading,
     error: marketAdviceError,
     refreshAdvice: refreshMarketAdvice,
-  } = useMarketAdvice(budget.totalExpense, budget.selectedPeriod.monthKey, showMarketAdvice);
+  } = useMarketAdvice(budget.totalExpense, budget.selectedPeriod.monthKey, showMarketAdvice, exchangeRatesSignal);
 
   useEffect(() => {
     if (!showMarketAdvice || isMarketAdviceLoading || !marketInvestmentAdvice) {
